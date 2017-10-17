@@ -180,8 +180,8 @@ public class BugExpireAndEvictionDUnitTest extends JUnit4DistributedTestCase {
     TimeUnit.SECONDS.sleep(ENTRY_IDLE_TIMEOUT / 2 + 1);
 
     keys0 = vm0.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
-    keys0 = vm1.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
-    keys0 = vm2.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
+    keys1 = vm1.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
+    keys2 = vm2.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
     assertArrayEquals(keys0.toArray(new Integer[0]), keys1.toArray(new Integer[0]));
     assertArrayEquals(keys1.toArray(new Integer[0]), keys2.toArray(new Integer[0]));
   }
@@ -210,8 +210,8 @@ public class BugExpireAndEvictionDUnitTest extends JUnit4DistributedTestCase {
     TimeUnit.SECONDS.sleep(ENTRY_IDLE_TIMEOUT / 2 + 1);
 
     keys0 = vm0.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
-    keys0 = vm1.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
-    keys0 = vm2.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
+    keys1 = vm1.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
+    keys2 = vm2.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
     assertArrayEquals(keys0.toArray(new Integer[0]), keys1.toArray(new Integer[0]));
     assertArrayEquals(keys1.toArray(new Integer[0]), keys2.toArray(new Integer[0]));
   }
@@ -240,8 +240,8 @@ public class BugExpireAndEvictionDUnitTest extends JUnit4DistributedTestCase {
     TimeUnit.SECONDS.sleep(ENTRY_IDLE_TIMEOUT / 2 + 1);
 
     keys0 = vm0.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
-    keys0 = vm1.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
-    keys0 = vm2.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
+    keys1 = vm1.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
+    keys2 = vm2.invoke(() -> BugExpireAndEvictionDUnitTest.queryRegionKeys(regionName));
     assertArrayEquals(keys0.toArray(new Integer[0]), keys1.toArray(new Integer[0]));
     assertArrayEquals(keys1.toArray(new Integer[0]), keys2.toArray(new Integer[0]));
   }
