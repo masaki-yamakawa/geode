@@ -22,116 +22,159 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.logging.log4j.Logger;
+
 import org.apache.geode.cache.Region;
+import org.apache.geode.distributed.internal.DistributionConfig;
+import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.security.SecurityService;
 import org.apache.geode.security.NotAuthorizedException;
 import org.apache.geode.security.ResourcePermission;
 
 public class RestrictedMethodInvocationAuthorizer implements MethodInvocationAuthorizer {
+  private static final Logger logger = LogService.getLogger();
+
+  public static String ADD_WHITELISTED_METHOD_CLASS = System.getProperty(
+      DistributionConfig.GEMFIRE_PREFIX + "QueryService.AdditionalWhiteListedMethodClasses");
 
   public static final String UNAUTHORIZED_STRING = "Unauthorized access to method: ";
 
   private SecurityService securityService;
 
   // List of methods that can be invoked by
-  private final HashMap<String, Set> whiteListedMethodsToClass;
+  private final Map<Class<?>, Set<String>> whiteListedMethods;
 
 
   public RestrictedMethodInvocationAuthorizer(SecurityService securityService) {
     this.securityService = securityService;
-    whiteListedMethodsToClass = createWhiteList();
+    whiteListedMethods = createWhiteList();
   }
 
-  private HashMap<String, Set> createWhiteList() {
-    HashMap<String, Set> whiteListMap = new HashMap();
-    Set<Class> objectCallers = new HashSet();
-    objectCallers.add(Object.class);
-    whiteListMap.put("toString", objectCallers);
-    whiteListMap.put("equals", objectCallers);
-    whiteListMap.put("compareTo", objectCallers);
+  private Map<Class<?>, Set<String>> createWhiteList() {
+    Map<Class<?>, Set<String>> whiteListMap = new HashMap<>();
+    Set<String> objectAllowedMethods = new HashSet<>();
+    objectAllowedMethods.add("toString");
+    objectAllowedMethods.add("equals");
+    objectAllowedMethods.add("compareTo");
+    whiteListMap.put(Object.class, objectAllowedMethods);
 
-    Set<Class> booleanCallers = new HashSet();
-    booleanCallers.add(Boolean.class);
-    whiteListMap.put("booleanValue", booleanCallers);
+    Set<String> booleanAllowedMethods = new HashSet<>();
+    booleanAllowedMethods.add("booleanValue");
+    whiteListMap.put(Boolean.class, booleanAllowedMethods);
 
-    Set<Class> numericCallers = new HashSet();
-    numericCallers.add(Number.class);
-    whiteListMap.put("byteValue", numericCallers);
-    whiteListMap.put("intValue", numericCallers);
-    whiteListMap.put("doubleValue", numericCallers);
-    whiteListMap.put("floatValue", numericCallers);
-    whiteListMap.put("longValue", numericCallers);
-    whiteListMap.put("shortValue", numericCallers);
+    Set<String> numericAllowedMethods = new HashSet<>();
+    numericAllowedMethods.add("byteValue");
+    numericAllowedMethods.add("intValue");
+    numericAllowedMethods.add("doubleValue");
+    numericAllowedMethods.add("floatValue");
+    numericAllowedMethods.add("longValue");
+    numericAllowedMethods.add("shortValue");
+    whiteListMap.put(Number.class, numericAllowedMethods);
 
-    Set<Class> mapCallers = new HashSet();
-    mapCallers.add(Collection.class);
-    mapCallers.add(Map.class);
-    whiteListMap.put("get", mapCallers);
-    whiteListMap.put("entrySet", mapCallers);
-    whiteListMap.put("keySet", mapCallers);
-    whiteListMap.put("values", mapCallers);
-    whiteListMap.put("getEntries", mapCallers);
-    whiteListMap.put("getValues", mapCallers);
-    whiteListMap.put("containsKey", mapCallers);
+    Set<String> mapAllowedMethods = new HashSet<>();
+    mapAllowedMethods.add("get");
+    mapAllowedMethods.add("entrySet");
+    mapAllowedMethods.add("keySet");
+    mapAllowedMethods.add("values");
+    mapAllowedMethods.add("getEntries");
+    mapAllowedMethods.add("getValues");
+    mapAllowedMethods.add("containsKey");
+    whiteListMap.put(Map.class, mapAllowedMethods);
 
-    Set<Class> mapEntryCallers = new HashSet();
-    mapEntryCallers.add(Map.Entry.class);
-    whiteListMap.put("getKey", mapEntryCallers);
-    whiteListMap.put("getValue", mapEntryCallers);
+    Set<String> collectionAllowedMethods = new HashSet<>();
+    collectionAllowedMethods.add("get");
+    collectionAllowedMethods.add("entrySet");
+    collectionAllowedMethods.add("keySet");
+    collectionAllowedMethods.add("values");
+    collectionAllowedMethods.add("getEntries");
+    collectionAllowedMethods.add("getValues");
+    collectionAllowedMethods.add("containsKey");
+    whiteListMap.put(Collection.class, collectionAllowedMethods);
 
-    Set<Class> dateCallers = new HashSet<>();
-    dateCallers.add(Date.class);
-    whiteListMap.put("after", dateCallers);
-    whiteListMap.put("before", dateCallers);
-    whiteListMap.put("getNanos", dateCallers);
-    whiteListMap.put("getTime", dateCallers);
+    Set<String> mapEntryAllowedMethods = new HashSet<>();
+    mapEntryAllowedMethods.add("getKey");
+    mapEntryAllowedMethods.add("getValue");
+    whiteListMap.put(Map.Entry.class, mapEntryAllowedMethods);
 
-    Set<Class> stringCallers = new HashSet<>();
-    stringCallers.add(String.class);
-    whiteListMap.put("charAt", stringCallers);
-    whiteListMap.put("codePointAt", stringCallers);
-    whiteListMap.put("codePointBefore", stringCallers);
-    whiteListMap.put("codePointCount", stringCallers);
-    whiteListMap.put("compareToIgnoreCase", stringCallers);
-    whiteListMap.put("concat", stringCallers);
-    whiteListMap.put("contains", stringCallers);
-    whiteListMap.put("contentEquals", stringCallers);
-    whiteListMap.put("endsWith", stringCallers);
-    whiteListMap.put("equalsIgnoreCase", stringCallers);
-    whiteListMap.put("getBytes", stringCallers);
-    whiteListMap.put("hashCode", stringCallers);
-    whiteListMap.put("indexOf", stringCallers);
-    whiteListMap.put("intern", stringCallers);
-    whiteListMap.put("isEmpty", stringCallers);
-    whiteListMap.put("lastIndexOf", stringCallers);
-    whiteListMap.put("length", stringCallers);
-    whiteListMap.put("matches", stringCallers);
-    whiteListMap.put("offsetByCodePoints", stringCallers);
-    whiteListMap.put("regionMatches", stringCallers);
-    whiteListMap.put("replace", stringCallers);
-    whiteListMap.put("replaceAll", stringCallers);
-    whiteListMap.put("replaceFirst", stringCallers);
-    whiteListMap.put("split", stringCallers);
-    whiteListMap.put("startsWith", stringCallers);
-    whiteListMap.put("substring", stringCallers);
-    whiteListMap.put("toCharArray", stringCallers);
-    whiteListMap.put("toLowerCase", stringCallers);
-    whiteListMap.put("toUpperCase", stringCallers);
-    whiteListMap.put("trim", stringCallers);
+    Set<String> dateAllowedMethods = new HashSet<>();
+    dateAllowedMethods.add("after");
+    dateAllowedMethods.add("before");
+    dateAllowedMethods.add("getNanos");
+    dateAllowedMethods.add("getTime");
+    whiteListMap.put(Date.class, dateAllowedMethods);
 
+    Set<String> stringAllowedMethods = new HashSet<>();
+    stringAllowedMethods.add("charAt");
+    stringAllowedMethods.add("codePointAt");
+    stringAllowedMethods.add("codePointBefore");
+    stringAllowedMethods.add("codePointCount");
+    stringAllowedMethods.add("compareToIgnoreCase");
+    stringAllowedMethods.add("concat");
+    stringAllowedMethods.add("contains");
+    stringAllowedMethods.add("contentEquals");
+    stringAllowedMethods.add("endsWith");
+    stringAllowedMethods.add("equalsIgnoreCase");
+    stringAllowedMethods.add("getBytes");
+    stringAllowedMethods.add("hashCode");
+    stringAllowedMethods.add("indexOf");
+    stringAllowedMethods.add("intern");
+    stringAllowedMethods.add("isEmpty");
+    stringAllowedMethods.add("lastIndexOf");
+    stringAllowedMethods.add("length");
+    stringAllowedMethods.add("matches");
+    stringAllowedMethods.add("offsetByCodePoints");
+    stringAllowedMethods.add("regionMatches");
+    stringAllowedMethods.add("replace");
+    stringAllowedMethods.add("replaceAll");
+    stringAllowedMethods.add("replaceFirst");
+    stringAllowedMethods.add("split");
+    stringAllowedMethods.add("startsWith");
+    stringAllowedMethods.add("substring");
+    stringAllowedMethods.add("toCharArray");
+    stringAllowedMethods.add("toLowerCase");
+    stringAllowedMethods.add("toUpperCase");
+    stringAllowedMethods.add("trim");
+    whiteListMap.put(String.class, stringAllowedMethods);
+
+    if (ADD_WHITELISTED_METHOD_CLASS != null && ADD_WHITELISTED_METHOD_CLASS.length() > 0) {
+      whiteListMap.putAll(createAdditionalWhitelisted());
+    }
+
+    return whiteListMap;
+  }
+
+  private Map<Class<?>, Set<String>> createAdditionalWhitelisted() {
+    Map<Class<?>, Set<String>> whiteListMap = new HashMap<>();
+    // TODO allow wild card. for example com.aaa.bbb.*
+    String[] classes = ADD_WHITELISTED_METHOD_CLASS.split(",");
+    for (String classStr : classes) {
+      try {
+        Class<?> clazz = Class.forName(classStr.trim());
+        Set<String> addClassAllowedMethods = new HashSet<>();
+        // TODO restrict methods
+        for (Method method : clazz.getDeclaredMethods()) {
+          addClassAllowedMethods.add(method.getName());
+        }
+        whiteListMap.put(clazz, addClassAllowedMethods);
+      } catch (ClassNotFoundException e) {
+        // TODO output warn log
+        logger.warn("The specified class in the system property does not exist. class="
+            + ADD_WHITELISTED_METHOD_CLASS);
+      }
+    }
     return whiteListMap;
   }
 
   boolean isWhitelisted(Method method) {
     String methodName = method.getName();
 
-    Set<Class> allowedClasses = whiteListedMethodsToClass.get(methodName);
-    if (allowedClasses == null) {
-      return false;
-    }
-    for (Class clazz : allowedClasses) {
-      if (clazz.isAssignableFrom(method.getDeclaringClass())) {
-        return true;
+    // TODO cahced methods
+    for (Map.Entry<Class<?>, Set<String>> whiteListedClass : whiteListedMethods.entrySet()) {
+      if (whiteListedClass.getKey().isAssignableFrom(method.getDeclaringClass())) {
+        boolean result = whiteListedClass.getValue().contains(methodName);
+        if (result) {
+          return true;
+        }
       }
     }
     return false;
@@ -147,7 +190,7 @@ public class RestrictedMethodInvocationAuthorizer implements MethodInvocationAut
 
   private void authorizeRegionAccess(SecurityService securityService, Object target) {
     if (target instanceof Region) {
-      String regionName = ((Region) target).getName();
+      String regionName = ((Region<?, ?>) target).getName();
       securityService.authorize(ResourcePermission.Resource.DATA, ResourcePermission.Operation.READ,
           regionName);
     }

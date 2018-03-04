@@ -15,8 +15,7 @@
 package org.apache.geode.cache.query.internal;
 
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -24,14 +23,18 @@ import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.sql.Timestamp;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.contrib.java.lang.system.RestoreSystemProperties;
 import org.junit.experimental.categories.Category;
 
 import org.apache.geode.cache.query.internal.index.DummyQRegion;
+import org.apache.geode.distributed.internal.DistributionConfig;
 import org.apache.geode.internal.cache.EntrySnapshot;
 import org.apache.geode.internal.cache.LocalRegion;
 import org.apache.geode.internal.cache.PartitionedRegion;
@@ -40,8 +43,17 @@ import org.apache.geode.test.junit.categories.UnitTest;
 
 @Category({UnitTest.class, SecurityTest.class})
 public class RestrictedMethodInvocationAuthorizerTest {
+  @Rule
+  public final RestoreSystemProperties restoreSystemProperties = new RestoreSystemProperties();
+
   RestrictedMethodInvocationAuthorizer methodInvocationAuthorizer =
       new RestrictedMethodInvocationAuthorizer(null);
+
+  static {
+    System.setProperty(
+        DistributionConfig.GEMFIRE_PREFIX + "QueryService.AdditionalWhiteListedMethodClasses",
+        "org.apache.geode.cache.query.internal.RestrictedMethodInvocationAuthorizerTest$UserObject, org.apache.geode.cache.query.internal.RestrictedMethodInvocationAuthorizerTest$UserObject2 ");
+  }
 
   @Test
   public void getClassShouldFail() throws Exception {
@@ -515,4 +527,75 @@ public class RestrictedMethodInvocationAuthorizerTest {
     assertTrue(methodInvocationAuthorizer.isWhitelisted(containsKey));
   }
 
+  @Test
+  public void testUserObject() throws NoSuchMethodException {
+    RestrictedMethodInvocationAuthorizer authorizer =
+        new RestrictedMethodInvocationAuthorizer(null);
+
+    UserObject<Integer> obj = new UserObject<>();
+    Method get = obj.getClass().getMethod("get", String.class);
+    assertTrue(authorizer.isWhitelisted(get));
+  }
+
+  @Test
+  public void testUserObject2() throws NoSuchMethodException {
+    RestrictedMethodInvocationAuthorizer authorizer =
+        new RestrictedMethodInvocationAuthorizer(null);
+
+    UserObject2<Integer> obj = new UserObject2<>();
+    Method get = obj.getClass().getMethod("get", String.class);
+    Method toBigDecimal = obj.getClass().getMethod("toBigDecimal");
+    Method toString = obj.getClass().getMethod("toString");
+    assertTrue(authorizer.isWhitelisted(get));
+    assertTrue(authorizer.isWhitelisted(toBigDecimal));
+    assertTrue(authorizer.isWhitelisted(toString));
+  }
+
+  @Test
+  public void testUserObjectBoth() throws NoSuchMethodException {
+    RestrictedMethodInvocationAuthorizer authorizer =
+        new RestrictedMethodInvocationAuthorizer(null);
+
+    UserObject<Integer> obj1 = new UserObject<>();
+    Method get1 = obj1.getClass().getMethod("get", String.class);
+    assertTrue(authorizer.isWhitelisted(get1));
+
+    UserObject2<Integer> obj2 = new UserObject2<>();
+    Method get2 = obj2.getClass().getMethod("get", String.class);
+    Method toBigDecimal = obj2.getClass().getMethod("toBigDecimal");
+    Method toString = obj2.getClass().getMethod("toString");
+    assertTrue(authorizer.isWhitelisted(get2));
+    assertTrue(authorizer.isWhitelisted(toBigDecimal));
+    assertTrue(authorizer.isWhitelisted(toString));
+  }
+
+  @Test
+  public void testUserObject222() throws NoSuchMethodException {
+    // TODO class not found or method not found
+    // TODO unauthorized method test
+  }
+
+  public static class UserObject<T> {
+    private Map<String, T> map = new HashMap<>();
+
+    public T get(String key) {
+      return map.get(key);
+    }
+  }
+
+  public static class UserObject2<T> {
+    private Map<String, T> map = new HashMap<>();
+
+    public T get(String key) {
+      return map.get(key);
+    }
+
+    public String toBigDecimal() {
+      return "";
+    }
+
+    public String toString() {
+      return map.toString();
+    }
+  }
 }
