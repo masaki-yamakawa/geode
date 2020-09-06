@@ -21,6 +21,7 @@ import com.healthmarketscience.rmiio.RemoteInputStream;
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
+import org.apache.geode.connectors.jdbc.internal.TableMetaDataView;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.management.cli.CliFunction;
@@ -41,8 +42,8 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
         context.getCache(), remoteInputStreamName, remoteInputStream);
     Object[] output = new Object[2];
     output[1] = fieldMappings;
-
     if (regionMapping.getIds() == null || regionMapping.getIds().isEmpty()) {
+      TableMetaDataView tableMetaData = service.getTableMetaDataView(regionMapping);
       List<String> keyColumnNames = tableMetaData.getKeyColumnNames();
       output[0] = String.join(",", keyColumnNames);
     }
