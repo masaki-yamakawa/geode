@@ -75,55 +75,45 @@ public class RegionMappingConfiguration implements Extension<Region<?, ?>> {
     final Region<?, ?> region = extensionPoint.getTarget();
     InternalCache internalCache = (InternalCache) region.getRegionService();
     JdbcConnectorService service = internalCache.getService(JdbcConnectorService.class);
-    // from CreateMappingPreconditionCheckFunction
     if (mapping.getFieldMappings().isEmpty()) {
-      String dataSourceName = mapping.getDataSourceName();
-
-      DataSource dataSource = getDataSource(dataSourceName);
-      if (dataSource == null) {
-        throw new JdbcConnectorException("JDBC data-source named \"" + dataSourceName
-            + "\" not found. Create it with gfsh 'create data-source --pooled --name="
-            + dataSourceName + "'.");
-      }
-      TypeRegistry typeRegistry = internalCache.getPdxRegistry();
-      PdxType pdxType = getPdxTypeForClass(internalCache, typeRegistry, mapping.getPdxName());
-      try (Connection connection = dataSource.getConnection()) {
-        TableMetaDataView tableMetaData =
-            getTableMetaDataManager().getTableMetaDataView(connection, mapping);
-        // TODO the table name returned in tableMetaData may be different than
-        // the table name specified on the command line at this point.
-        // Do we want to update the region mapping to hold the "real" table name
-        // Object[] output = new Object[2];
-        ArrayList<FieldMapping> fieldMappings = new ArrayList<>();
-        // output[1] = fieldMappings;
-        Set<String> columnNames = tableMetaData.getColumnNames();
-        // if (columnNames.size() != pdxType.getFieldCount()) {
-        // throw new JdbcConnectorException(
-        // "The table and pdx class must have the same number of columns/fields. But the table has "
-        // + columnNames.size()
-        // + " columns and the pdx class has " + pdxType.getFieldCount() + " fields.");
-        // }
-        internalCache.getLogger()
-            .info("###############pdxFields=" + pdxType + "columnNames=" + columnNames);
-        List<PdxField> pdxFields = pdxType.getFields();
-        for (String jdbcName : columnNames) {
-          boolean isNullable = tableMetaData.isColumnNullable(jdbcName);
-          JDBCType jdbcType = tableMetaData.getColumnDataType(jdbcName);
-          FieldMapping fieldMapping =
-              createFieldMapping(jdbcName, jdbcType.getName(), isNullable, pdxFields);
-          mapping.addFieldMapping(fieldMapping);
-          // fieldMappings.add(fieldMapping);
-        }
-        // if (mapping.getIds() == null ||mapping.getIds().isEmpty()) {
-        // List<String> keyColumnNames = tableMetaData.getKeyColumnNames();
-        // output[0] = String.join(",", keyColumnNames);
-        // }
-      } catch (SQLException e) {
-        throw JdbcConnectorException.createException(e);
-      }
+      createDefaultFieldMapping(internalCache);
     }
     service.validateMapping(mapping);
     createRegionMapping(service, mapping);
+  }
+
+  // from CreateMappingPreconditionCheckFunction
+  private void createDefaultFieldMapping(InternalCache internalCache) {
+    String dataSourceName = mapping.getDataSourceName();
+
+    DataSource dataSource = getDataSource(dataSourceName);
+    if (dataSource == null) {
+      throw new JdbcConnectorException("JDBC data-source named \"" + dataSourceName
+          + "\" not found. Create it with gfsh 'create data-source --pooled --name="
+          + dataSourceName + "'.");
+    }
+    TypeRegistry typeRegistry = internalCache.getPdxRegistry();
+    PdxType pdxType = getPdxTypeForClass(internalCache, typeRegistry, mapping.getPdxName());
+    try (Connection connection = dataSource.getConnection()) {
+      TableMetaDataView tableMetaData =
+          getTableMetaDataManager().getTableMetaDataView(connection, mapping);
+      // TODO the table name returned in tableMetaData may be different than
+      // the table name specified on the command line at this point.
+      // Do we want to update the region mapping to hold the "real" table name
+      // Object[] output = new Object[2];
+      ArrayList<FieldMapping> fieldMappings = new ArrayList<>();
+      Set<String> columnNames = tableMetaData.getColumnNames();
+      List<PdxField> pdxFields = pdxType.getFields();
+      for (String jdbcName : columnNames) {
+        boolean isNullable = tableMetaData.isColumnNullable(jdbcName);
+        JDBCType jdbcType = tableMetaData.getColumnDataType(jdbcName);
+        FieldMapping fieldMapping =
+            createFieldMapping(jdbcName, jdbcType.getName(), isNullable, pdxFields);
+        mapping.addFieldMapping(fieldMapping);
+      }
+    } catch (SQLException e) {
+      throw JdbcConnectorException.createException(e);
+    }
   }
 
   private void createRegionMapping(JdbcConnectorService service,
