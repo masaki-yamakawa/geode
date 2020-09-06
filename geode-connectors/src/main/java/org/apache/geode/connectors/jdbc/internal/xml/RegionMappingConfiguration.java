@@ -50,6 +50,10 @@ public class RegionMappingConfiguration implements Extension<Region<?, ?>> {
     final Region<?, ?> region = extensionPoint.getTarget();
     InternalCache internalCache = (InternalCache) region.getRegionService();
     JdbcConnectorService service = internalCache.getService(JdbcConnectorService.class);
+    if (mapping.getFieldMappings().isEmpty()) {
+      // TODO RemoteInputStream
+      service.createDefaultFieldMapping(mapping, internalCache, null, null);
+    }
     service.validateMapping(mapping);
     createRegionMapping(service, mapping);
   }
