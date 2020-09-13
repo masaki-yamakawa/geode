@@ -43,12 +43,7 @@ import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.management.cli.CliFunction;
 import org.apache.geode.management.internal.functions.CliFunctionResult;
-import org.apache.geode.pdx.PdxWriter;
-import org.apache.geode.pdx.ReflectionBasedAutoSerializer;
-import org.apache.geode.pdx.internal.PdxOutputStream;
 import org.apache.geode.pdx.internal.PdxType;
-import org.apache.geode.pdx.internal.PdxWriterImpl;
-import org.apache.geode.pdx.internal.TypeRegistry;
 
 @Experimental
 public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]> {
