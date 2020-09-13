@@ -14,11 +14,14 @@
  */
 package org.apache.geode.connectors.jdbc.internal.xml;
 
+import java.util.List;
+
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
 import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
 import org.apache.geode.connectors.jdbc.internal.RegionMappingExistsException;
+import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.extension.Extensible;
@@ -52,7 +55,11 @@ public class RegionMappingConfiguration implements Extension<Region<?, ?>> {
     JdbcConnectorService service = internalCache.getService(JdbcConnectorService.class);
     if (mapping.getFieldMappings().isEmpty()) {
       // TODO RemoteInputStream
-      service.createDefaultFieldMapping(mapping, internalCache, null, null);
+      List<FieldMapping> fieldMappings =
+          service.createDefaultFieldMapping(mapping, internalCache, null, null);
+      fieldMappings.forEach(fieldMapping -> {
+        mapping.addFieldMapping(fieldMapping);
+      });
     }
     service.validateMapping(mapping);
     createRegionMapping(service, mapping);
