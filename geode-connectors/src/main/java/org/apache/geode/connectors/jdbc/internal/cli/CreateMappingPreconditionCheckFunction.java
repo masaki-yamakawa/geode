@@ -41,9 +41,12 @@ import org.apache.geode.connectors.jdbc.internal.TableMetaDataView;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.ClassPathLoader;
+import org.apache.geode.internal.jndi.JNDIInvoker;
 import org.apache.geode.management.cli.CliFunction;
 import org.apache.geode.management.internal.functions.CliFunctionResult;
 import org.apache.geode.pdx.internal.PdxType;
+
+import javax.sql.DataSource;
 
 @Experimental
 public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]> {
@@ -55,6 +58,14 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
     RegionMapping regionMapping = (RegionMapping) args[0];
     String remoteInputStreamName = (String) args[1];
     RemoteInputStream remoteInputStream = (RemoteInputStream) args[2];
+
+    String dataSourceName = regionMapping.getDataSourceName();
+    DataSource dataSource = getDataSource(dataSourceName);
+    if (dataSource == null) {
+      throw new JdbcConnectorException("JDBC data-source named \"" + dataSourceName
+              + "\" not found. Create it with gfsh 'create data-source --pooled --name="
+              + dataSourceName + "'.");
+    }
 
     Class<?> pdxClazz =
         loadPdxClass(regionMapping.getPdxName(), remoteInputStreamName, remoteInputStream);
@@ -157,6 +168,11 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
           "The pdx class file \"" + remoteInputStreamName
               + "\" could not be copied to a temporary file, because: " + iox);
     }
+  }
+
+  // unit test mocks this method
+  DataSource getDataSource(String dataSourceName) {
+    return JNDIInvoker.getDataSource(dataSourceName);
   }
 
   // unit test mocks this method
