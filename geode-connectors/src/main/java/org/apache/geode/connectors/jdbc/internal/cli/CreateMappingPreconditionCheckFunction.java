@@ -175,16 +175,6 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
   }
 
   // unit test mocks this method
-  ReflectionBasedAutoSerializer getReflectionBasedAutoSerializer(String className) {
-    return new ReflectionBasedAutoSerializer(className);
-  }
-
-  // unit test mocks this method
-  PdxWriter createPdxWriter(TypeRegistry typeRegistry, Object object) {
-    return new PdxWriterImpl(typeRegistry, object, new PdxOutputStream());
-  }
-
-  // unit test mocks this method
   Path createTempDirectory(String prefix) throws IOException {
     return Files.createTempDirectory(prefix);
   }
