@@ -14,18 +14,41 @@
  */
 package org.apache.geode.connectors.jdbc.internal.cli;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
 import com.healthmarketscience.rmiio.RemoteInputStream;
+import com.healthmarketscience.rmiio.RemoteInputStreamClient;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
 
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.cache.execute.FunctionContext;
+import org.apache.geode.connectors.jdbc.JdbcConnectorException;
 import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
 import org.apache.geode.connectors.jdbc.internal.TableMetaDataView;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
+import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.management.cli.CliFunction;
 import org.apache.geode.management.internal.functions.CliFunctionResult;
+import org.apache.geode.pdx.PdxWriter;
+import org.apache.geode.pdx.ReflectionBasedAutoSerializer;
+import org.apache.geode.pdx.internal.PdxOutputStream;
+import org.apache.geode.pdx.internal.PdxType;
+import org.apache.geode.pdx.internal.PdxWriterImpl;
+import org.apache.geode.pdx.internal.TypeRegistry;
 
 @Experimental
 public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]> {
@@ -38,8 +61,11 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
     String remoteInputStreamName = (String) args[1];
     RemoteInputStream remoteInputStream = (RemoteInputStream) args[2];
 
-    List<FieldMapping> fieldMappings = service.createDefaultFieldMapping(regionMapping,
-        context.getCache(), remoteInputStreamName, remoteInputStream);
+    Class<?> pdxClazz =
+        loadPdxClass(regionMapping.getPdxName(), remoteInputStreamName, remoteInputStream);
+    PdxType pdxType = service.getPdxTypeForClass(context.getCache(), pdxClazz);
+
+    List<FieldMapping> fieldMappings = service.createDefaultFieldMapping(regionMapping, pdxType);
     Object[] output = new Object[2];
     output[1] = fieldMappings;
     if (regionMapping.getIds() == null || regionMapping.getIds().isEmpty()) {
@@ -49,5 +75,122 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
     }
     String member = context.getMemberName();
     return new CliFunctionResult(member, output);
+  }
+
+  private Class<?> loadPdxClass(String className, String remoteInputStreamName,
+      RemoteInputStream remoteInputStream) {
+    try {
+      if (remoteInputStream != null) {
+        return loadPdxClassFromRemoteStream(className, remoteInputStreamName, remoteInputStream);
+      } else {
+        return loadClass(className);
+      }
+    } catch (ClassNotFoundException ex) {
+      throw new JdbcConnectorException(
+          "The pdx class \"" + className + "\" could not be loaded because: " + ex);
+    }
+  }
+
+  private Class<?> loadPdxClassFromRemoteStream(String className, String remoteInputStreamName,
+      RemoteInputStream remoteInputStream) throws ClassNotFoundException {
+    Path tempDir = createTemporaryDirectory("pdx-class-dir-");
+    try {
+      File file =
+          copyRemoteInputStreamToTempFile(className, remoteInputStreamName, remoteInputStream,
+              tempDir);
+      return loadClass(className, createURL(file, tempDir));
+    } finally {
+      deleteDirectory(tempDir);
+    }
+  }
+
+  Path createTemporaryDirectory(String prefix) {
+    try {
+      return createTempDirectory(prefix);
+    } catch (IOException ex) {
+      throw new JdbcConnectorException(
+          "Could not create a temporary directory with the prefix \"" + prefix + "\" because: "
+              + ex);
+    }
+
+  }
+
+  void deleteDirectory(Path tempDir) {
+    try {
+      FileUtils.deleteDirectory(tempDir.toFile());
+    } catch (IOException ioe) {
+      // ignore
+    }
+  }
+
+  private URL createURL(File file, Path tempDir) {
+    URI uri;
+    if (isJar(file.getName())) {
+      uri = file.toURI();
+    } else {
+      uri = tempDir.toUri();
+    }
+    try {
+      return uri.toURL();
+    } catch (MalformedURLException e) {
+      throw new JdbcConnectorException(
+          "Could not convert \"" + uri + "\" to a URL, because: " + e);
+    }
+  }
+
+  private boolean isJar(String fileName) {
+    String fileExtension = FilenameUtils.getExtension(fileName);
+    return fileExtension.equalsIgnoreCase("jar");
+  }
+
+  private File copyRemoteInputStreamToTempFile(String className, String remoteInputStreamName,
+      RemoteInputStream remoteInputStream, Path tempDir) {
+    if (!isJar(remoteInputStreamName) && className.contains(".")) {
+      File packageDir = new File(tempDir.toFile(), className.replace(".", "/")).getParentFile();
+      packageDir.mkdirs();
+      tempDir = packageDir.toPath();
+    }
+    try {
+      Path tempPdxClassFile = Paths.get(tempDir.toString(), remoteInputStreamName);
+      try (InputStream input = RemoteInputStreamClient.wrap(remoteInputStream);
+          FileOutputStream output = new FileOutputStream(tempPdxClassFile.toString())) {
+        copyFile(input, output);
+      }
+      return tempPdxClassFile.toFile();
+    } catch (IOException iox) {
+      throw new JdbcConnectorException(
+          "The pdx class file \"" + remoteInputStreamName
+              + "\" could not be copied to a temporary file, because: " + iox);
+    }
+  }
+
+  // unit test mocks this method
+  Class<?> loadClass(String className) throws ClassNotFoundException {
+    return ClassPathLoader.getLatest().forName(className);
+  }
+
+  // unit test mocks this method
+  Class<?> loadClass(String className, URL url) throws ClassNotFoundException {
+    return URLClassLoader.newInstance(new URL[] {url}).loadClass(className);
+  }
+
+  // unit test mocks this method
+  ReflectionBasedAutoSerializer getReflectionBasedAutoSerializer(String className) {
+    return new ReflectionBasedAutoSerializer(className);
+  }
+
+  // unit test mocks this method
+  PdxWriter createPdxWriter(TypeRegistry typeRegistry, Object object) {
+    return new PdxWriterImpl(typeRegistry, object, new PdxOutputStream());
+  }
+
+  // unit test mocks this method
+  Path createTempDirectory(String prefix) throws IOException {
+    return Files.createTempDirectory(prefix);
+  }
+
+  // unit test mocks this method
+  void copyFile(InputStream input, FileOutputStream output) throws IOException {
+    IOUtils.copyLarge(input, output);
   }
 }

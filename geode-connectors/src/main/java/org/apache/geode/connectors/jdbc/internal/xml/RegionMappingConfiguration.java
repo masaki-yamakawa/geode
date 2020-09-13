@@ -19,15 +19,18 @@ import java.util.List;
 import org.apache.geode.InternalGemFireException;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.cache.Region;
+import org.apache.geode.connectors.jdbc.JdbcConnectorException;
 import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
 import org.apache.geode.connectors.jdbc.internal.RegionMappingExistsException;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
+import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.extension.Extensible;
 import org.apache.geode.internal.cache.extension.Extension;
 import org.apache.geode.internal.cache.extension.ExtensionPoint;
 import org.apache.geode.internal.cache.xmlcache.XmlGenerator;
+import org.apache.geode.pdx.internal.PdxType;
 
 public class RegionMappingConfiguration implements Extension<Region<?, ?>> {
 
@@ -54,9 +57,10 @@ public class RegionMappingConfiguration implements Extension<Region<?, ?>> {
     InternalCache internalCache = (InternalCache) region.getRegionService();
     JdbcConnectorService service = internalCache.getService(JdbcConnectorService.class);
     if (mapping.getFieldMappings().isEmpty()) {
-      // TODO RemoteInputStream
-      List<FieldMapping> fieldMappings =
-          service.createDefaultFieldMapping(mapping, internalCache, null, null);
+      Class<?> pdxClazz = loadPdxClass(mapping.getPdxName());
+      PdxType pdxType = service.getPdxTypeForClass(internalCache, pdxClazz);
+
+      List<FieldMapping> fieldMappings = service.createDefaultFieldMapping(mapping, pdxType);
       fieldMappings.forEach(fieldMapping -> {
         mapping.addFieldMapping(fieldMapping);
       });
@@ -72,5 +76,18 @@ public class RegionMappingConfiguration implements Extension<Region<?, ?>> {
     } catch (RegionMappingExistsException e) {
       throw new InternalGemFireException(e);
     }
+  }
+
+  private Class<?> loadPdxClass(String className) {
+    try {
+      return loadClass(className);
+    } catch (ClassNotFoundException ex) {
+      throw new JdbcConnectorException(
+          "The pdx class \"" + className + "\" could not be loaded because: " + ex);
+    }
+  }
+
+  private Class<?> loadClass(String className) throws ClassNotFoundException {
+    return ClassPathLoader.getLatest().forName(className);
   }
 }

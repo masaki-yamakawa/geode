@@ -14,19 +14,8 @@
  */
 package org.apache.geode.connectors.jdbc.internal;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -39,11 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.sql.DataSource;
 
-import com.healthmarketscience.rmiio.RemoteInputStream;
-import com.healthmarketscience.rmiio.RemoteInputStreamClient;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.Logger;
 
 import org.apache.geode.SerializationException;
@@ -54,7 +38,6 @@ import org.apache.geode.connectors.jdbc.JdbcConnectorException;
 import org.apache.geode.connectors.jdbc.JdbcWriter;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
-import org.apache.geode.internal.ClassPathLoader;
 import org.apache.geode.internal.cache.CacheService;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.jndi.JNDIInvoker;
@@ -253,18 +236,14 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
   }
 
   @Override
-  public List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping, Cache cache,
-      String remoteInputStreamName, RemoteInputStream remoteInputStream) {
+  public List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping,
+      PdxType pdxType) {
     DataSource dataSource = getDataSource(regionMapping.getDataSourceName());
     if (dataSource == null) {
       throw new JdbcConnectorException("No datasource \"" + regionMapping.getDataSourceName()
           + "\" found when creating mapping \"" + regionMapping.getRegionName() + "\"");
     }
 
-    InternalCache internalCache = (InternalCache) cache;
-    TypeRegistry typeRegistry = internalCache.getPdxRegistry();
-    PdxType pdxType = getPdxTypeForClass(internalCache, typeRegistry, regionMapping.getPdxName(),
-        remoteInputStreamName, remoteInputStream);
     try (Connection connection = dataSource.getConnection()) {
       TableMetaDataView tableMetaData =
           getTableMetaDataManager().getTableMetaDataView(connection, regionMapping);
@@ -324,14 +303,17 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
     return new FieldMapping(pdxName, pdxType, jdbcName, jdbcType, jdbcNullable);
   }
 
-  private PdxType getPdxTypeForClass(InternalCache cache, TypeRegistry typeRegistry,
-      String className, String remoteInputStreamName, RemoteInputStream remoteInputStream) {
-    Class<?> clazz = loadPdxClass(className, remoteInputStreamName, remoteInputStream);
+  // TODO to public name
+  @Override
+  public PdxType getPdxTypeForClass(Cache cache, Class<?> clazz) {
+    InternalCache internalCache = (InternalCache) cache;
+    TypeRegistry typeRegistry = internalCache.getPdxRegistry();
+
     PdxType result = typeRegistry.getExistingTypeForClass(clazz);
     if (result != null) {
       return result;
     }
-    return generatePdxTypeForClass(cache, typeRegistry, clazz);
+    return generatePdxTypeForClass(internalCache, typeRegistry, clazz);
   }
 
   /**
@@ -377,103 +359,6 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
     }
   }
 
-  private Class<?> loadPdxClass(String className, String remoteInputStreamName,
-      RemoteInputStream remoteInputStream) {
-    try {
-      if (remoteInputStream != null) {
-        return loadPdxClassFromRemoteStream(className, remoteInputStreamName, remoteInputStream);
-      } else {
-        return loadClass(className);
-      }
-    } catch (ClassNotFoundException ex) {
-      throw new JdbcConnectorException(
-          "The pdx class \"" + className + "\" could not be loaded because: " + ex);
-    }
-  }
-
-  private Class<?> loadPdxClassFromRemoteStream(String className, String remoteInputStreamName,
-      RemoteInputStream remoteInputStream) throws ClassNotFoundException {
-    Path tempDir = createTemporaryDirectory("pdx-class-dir-");
-    try {
-      File file =
-          copyRemoteInputStreamToTempFile(className, remoteInputStreamName, remoteInputStream,
-              tempDir);
-      return loadClass(className, createURL(file, tempDir));
-    } finally {
-      deleteDirectory(tempDir);
-    }
-  }
-
-  Path createTemporaryDirectory(String prefix) {
-    try {
-      return createTempDirectory(prefix);
-    } catch (IOException ex) {
-      throw new JdbcConnectorException(
-          "Could not create a temporary directory with the prefix \"" + prefix + "\" because: "
-              + ex);
-    }
-
-  }
-
-  void deleteDirectory(Path tempDir) {
-    try {
-      FileUtils.deleteDirectory(tempDir.toFile());
-    } catch (IOException ioe) {
-      // ignore
-    }
-  }
-
-  private URL createURL(File file, Path tempDir) {
-    URI uri;
-    if (isJar(file.getName())) {
-      uri = file.toURI();
-    } else {
-      uri = tempDir.toUri();
-    }
-    try {
-      return uri.toURL();
-    } catch (MalformedURLException e) {
-      throw new JdbcConnectorException(
-          "Could not convert \"" + uri + "\" to a URL, because: " + e);
-    }
-  }
-
-  private boolean isJar(String fileName) {
-    String fileExtension = FilenameUtils.getExtension(fileName);
-    return fileExtension.equalsIgnoreCase("jar");
-  }
-
-  private File copyRemoteInputStreamToTempFile(String className, String remoteInputStreamName,
-      RemoteInputStream remoteInputStream, Path tempDir) {
-    if (!isJar(remoteInputStreamName) && className.contains(".")) {
-      File packageDir = new File(tempDir.toFile(), className.replace(".", "/")).getParentFile();
-      packageDir.mkdirs();
-      tempDir = packageDir.toPath();
-    }
-    try {
-      Path tempPdxClassFile = Paths.get(tempDir.toString(), remoteInputStreamName);
-      try (InputStream input = RemoteInputStreamClient.wrap(remoteInputStream);
-          FileOutputStream output = new FileOutputStream(tempPdxClassFile.toString())) {
-        copyFile(input, output);
-      }
-      return tempPdxClassFile.toFile();
-    } catch (IOException iox) {
-      throw new JdbcConnectorException(
-          "The pdx class file \"" + remoteInputStreamName
-              + "\" could not be copied to a temporary file, because: " + iox);
-    }
-  }
-
-  // unit test mocks this method
-  Class<?> loadClass(String className) throws ClassNotFoundException {
-    return ClassPathLoader.getLatest().forName(className);
-  }
-
-  // unit test mocks this method
-  Class<?> loadClass(String className, URL url) throws ClassNotFoundException {
-    return URLClassLoader.newInstance(new URL[] {url}).loadClass(className);
-  }
-
   // unit test mocks this method
   ReflectionBasedAutoSerializer getReflectionBasedAutoSerializer(String className) {
     return new ReflectionBasedAutoSerializer(className);
@@ -482,15 +367,5 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
   // unit test mocks this method
   PdxWriter createPdxWriter(TypeRegistry typeRegistry, Object object) {
     return new PdxWriterImpl(typeRegistry, object, new PdxOutputStream());
-  }
-
-  // unit test mocks this method
-  Path createTempDirectory(String prefix) throws IOException {
-    return Files.createTempDirectory(prefix);
-  }
-
-  // unit test mocks this method
-  void copyFile(InputStream input, FileOutputStream output) throws IOException {
-    IOUtils.copyLarge(input, output);
   }
 }

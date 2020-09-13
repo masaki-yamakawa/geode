@@ -19,13 +19,12 @@ import java.util.Set;
 
 import javax.sql.DataSource;
 
-import com.healthmarketscience.rmiio.RemoteInputStream;
-
 import org.apache.geode.annotations.Experimental;
 import org.apache.geode.cache.Cache;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.CacheService;
+import org.apache.geode.pdx.internal.PdxType;
 
 @Experimental
 public interface JdbcConnectorService extends CacheService {
@@ -51,6 +50,7 @@ public interface JdbcConnectorService extends CacheService {
 
   TableMetaDataView getTableMetaDataView(RegionMapping regionMapping);
 
-  List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping, Cache cache,
-      String remoteInputStreamName, RemoteInputStream remoteInputStream);
+  List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping, PdxType pdxType);
+
+  PdxType getPdxTypeForClass(Cache cache, Class<?> clazz);
 }
