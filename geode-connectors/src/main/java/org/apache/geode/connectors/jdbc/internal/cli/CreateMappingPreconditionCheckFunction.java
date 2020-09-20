@@ -27,6 +27,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
+import javax.sql.DataSource;
+
 import com.healthmarketscience.rmiio.RemoteInputStream;
 import com.healthmarketscience.rmiio.RemoteInputStreamClient;
 import org.apache.commons.io.FileUtils;
@@ -46,8 +48,6 @@ import org.apache.geode.management.cli.CliFunction;
 import org.apache.geode.management.internal.functions.CliFunctionResult;
 import org.apache.geode.pdx.internal.PdxType;
 
-import javax.sql.DataSource;
-
 @Experimental
 public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]> {
 
@@ -63,15 +63,16 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
     DataSource dataSource = getDataSource(dataSourceName);
     if (dataSource == null) {
       throw new JdbcConnectorException("JDBC data-source named \"" + dataSourceName
-              + "\" not found. Create it with gfsh 'create data-source --pooled --name="
-              + dataSourceName + "'.");
+          + "\" not found. Create it with gfsh 'create data-source --pooled --name="
+          + dataSourceName + "'.");
     }
 
     Class<?> pdxClazz =
         loadPdxClass(regionMapping.getPdxName(), remoteInputStreamName, remoteInputStream);
     PdxType pdxType = service.getPdxTypeForClass(context.getCache(), pdxClazz);
 
-    List<FieldMapping> fieldMappings = service.createDefaultFieldMapping(regionMapping, pdxType);
+    List<FieldMapping> fieldMappings =
+        service.createDefaultFieldMapping(regionMapping, pdxType, dataSource);
     Object[] output = new Object[2];
     output[1] = fieldMappings;
     if (regionMapping.getIds() == null || regionMapping.getIds().isEmpty()) {

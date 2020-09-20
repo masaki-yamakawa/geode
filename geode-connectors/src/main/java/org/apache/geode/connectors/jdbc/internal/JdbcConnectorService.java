@@ -50,6 +50,9 @@ public interface JdbcConnectorService extends CacheService {
 
   TableMetaDataView getTableMetaDataView(RegionMapping regionMapping);
 
+  List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping, PdxType pdxType,
+      DataSource dataSource);
+
   List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping, PdxType pdxType);
 
   PdxType getPdxTypeForClass(Cache cache, Class<?> clazz);
