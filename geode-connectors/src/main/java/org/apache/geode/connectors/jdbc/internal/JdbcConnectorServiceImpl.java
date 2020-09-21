@@ -243,18 +243,6 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
       throw new JdbcConnectorException("No datasource \"" + regionMapping.getDataSourceName()
           + "\" found when creating mapping \"" + regionMapping.getRegionName() + "\"");
     }
-    return createDefaultFieldMapping(regionMapping, pdxType, dataSource);
-  }
-
-  @Override
-  public List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping,
-      PdxType pdxType, DataSource dataSource) {
-    // TODO
-    if (dataSource == null) {
-      throw new JdbcConnectorException("No datasource \"" + regionMapping.getDataSourceName()
-          + "\" found when creating mapping \"" + regionMapping.getRegionName() + "\"");
-    }
-
     try (Connection connection = dataSource.getConnection()) {
       TableMetaDataView tableMetaData = getTableMetaDataView(regionMapping, dataSource);
       return createDefaultFieldMapping(regionMapping, pdxType, tableMetaData);
@@ -320,7 +308,6 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
     return new FieldMapping(pdxName, pdxType, jdbcName, jdbcType, jdbcNullable);
   }
 
-  // TODO to public name
   @Override
   public PdxType getPdxTypeForClass(Cache cache, Class<?> clazz) {
     InternalCache internalCache = (InternalCache) cache;

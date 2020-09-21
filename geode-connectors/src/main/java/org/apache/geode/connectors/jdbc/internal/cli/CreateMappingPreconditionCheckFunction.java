@@ -79,7 +79,6 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
     output[1] = fieldMappings;
     if (regionMapping.getIds() == null || regionMapping.getIds().isEmpty()) {
       List<String> keyColumnNames = tableMetaData.getKeyColumnNames();
-      // TODO 未設定ありでもOK？
       output[0] = String.join(",", keyColumnNames);
     }
     String member = context.getMemberName();
