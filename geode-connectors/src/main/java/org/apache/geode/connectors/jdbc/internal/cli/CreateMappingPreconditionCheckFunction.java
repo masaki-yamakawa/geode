@@ -67,17 +67,20 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
           + dataSourceName + "'.");
     }
 
+    // TODO dataSource有りバージョン追加
+    TableMetaDataView tableMetaData = service.getTableMetaDataView(regionMapping);
+
     Class<?> pdxClazz =
         loadPdxClass(regionMapping.getPdxName(), remoteInputStreamName, remoteInputStream);
     PdxType pdxType = service.getPdxTypeForClass(context.getCache(), pdxClazz);
 
     List<FieldMapping> fieldMappings =
-        service.createDefaultFieldMapping(regionMapping, pdxType, dataSource);
+        service.createDefaultFieldMapping(regionMapping, pdxType, tableMetaData);
     Object[] output = new Object[2];
     output[1] = fieldMappings;
     if (regionMapping.getIds() == null || regionMapping.getIds().isEmpty()) {
-      TableMetaDataView tableMetaData = service.getTableMetaDataView(regionMapping);
       List<String> keyColumnNames = tableMetaData.getKeyColumnNames();
+      // TODO 未設定ありでもOK？
       output[0] = String.join(",", keyColumnNames);
     }
     String member = context.getMemberName();

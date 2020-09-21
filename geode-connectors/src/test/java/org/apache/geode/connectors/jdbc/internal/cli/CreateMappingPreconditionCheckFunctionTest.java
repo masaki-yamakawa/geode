@@ -33,7 +33,6 @@ import java.io.Serializable;
 import java.sql.Connection;
 import java.sql.JDBCType;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -51,8 +50,10 @@ import org.apache.geode.SerializationException;
 import org.apache.geode.cache.execute.FunctionContext;
 import org.apache.geode.cache.execute.ResultSender;
 import org.apache.geode.connectors.jdbc.JdbcConnectorException;
-import org.apache.geode.connectors.jdbc.internal.TableMetaDataManager;
+import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
+import org.apache.geode.connectors.jdbc.internal.JdbcConnectorServiceImpl;
 import org.apache.geode.connectors.jdbc.internal.TableMetaDataView;
+import org.apache.geode.connectors.jdbc.internal.TableMetaDataManager;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.InternalCache;
@@ -74,6 +75,7 @@ public class CreateMappingPreconditionCheckFunctionTest {
   private RegionMapping regionMapping;
   private FunctionContext<Object[]> context;
   private InternalCache cache;
+  private JdbcConnectorService service;
   private TypeRegistry typeRegistry;
   private TableMetaDataManager tableMetaDataManager;
   private TableMetaDataView tableMetaDataView;
@@ -98,6 +100,7 @@ public class CreateMappingPreconditionCheckFunctionTest {
     context = mock(FunctionContext.class);
     ResultSender<Object> resultSender = mock(ResultSender.class);
     cache = mock(InternalCache.class);
+    service = spy(JdbcConnectorServiceImpl.class);
     typeRegistry = mock(TypeRegistry.class);
     when(cache.getPdxRegistry()).thenReturn(typeRegistry);
     regionMapping = mock(RegionMapping.class);
@@ -122,6 +125,15 @@ public class CreateMappingPreconditionCheckFunctionTest {
     tableMetaDataView = mock(TableMetaDataView.class);
     when(tableMetaDataManager.getTableMetaDataView(connection, regionMapping))
         .thenReturn(tableMetaDataView);
+
+    // TODO Arg OK? Return OK?
+    when(cache.getService(eq(JdbcConnectorService.class))).thenReturn(service);
+    // doReturn(service).when(cache).getService(eq(JdbcConnectorService.class));
+    // doReturn(pdxType).when(service).getPdxTypeForClass(cache, PdxClassDummy.class);
+    // when(service.createDefaultFieldMapping(regionMapping, pdxType, dataSource))
+    // .thenReturn(new ArrayList());
+    doReturn(tableMetaDataView).when(service).getTableMetaDataView(regionMapping);
+
     setupFunction();
   }
 
@@ -135,9 +147,9 @@ public class CreateMappingPreconditionCheckFunctionTest {
     function = spy(CreateMappingPreconditionCheckFunction.class);
     doReturn(dataSource).when(function).getDataSource(DATA_SOURCE_NAME);
     doReturn(PdxClassDummy.class).when(function).loadClass(PDX_CLASS_NAME);
-    doReturn(null).when(function).getReflectionBasedAutoSerializer(any());
-    doReturn(null).when(function).createPdxWriter(same(typeRegistry), any());
-    doReturn(tableMetaDataManager).when(function).getTableMetaDataManager();
+    // doReturn(null).when(function).getReflectionBasedAutoSerializer(any());
+    // doReturn(null).when(function).createPdxWriter(same(typeRegistry), any());
+    // doReturn(tableMetaDataManager).when(function).getTableMetaDataManager();
   }
 
   @Test
@@ -202,7 +214,7 @@ public class CreateMappingPreconditionCheckFunctionTest {
     CliFunctionResult result = function.executeFunction(context);
 
     assertThat(result.isSuccessful()).isTrue();
-    ArrayList<FieldMapping> fieldsMappings = getFieldMappings(result);
+    List<FieldMapping> fieldsMappings = getFieldMappings(result);
     assertThat(fieldsMappings).isEmpty();
   }
 
@@ -227,7 +239,7 @@ public class CreateMappingPreconditionCheckFunctionTest {
     CliFunctionResult result = function.executeFunction(context);
 
     assertThat(result.isSuccessful()).isTrue();
-    ArrayList<FieldMapping> fieldsMappings = getFieldMappings(result);
+    List<FieldMapping> fieldsMappings = getFieldMappings(result);
     assertThat(fieldsMappings).hasSize(2);
     assertThat(fieldsMappings.get(0))
         .isEqualTo(
@@ -252,7 +264,7 @@ public class CreateMappingPreconditionCheckFunctionTest {
     CliFunctionResult result = function.executeFunction(context);
 
     assertThat(result.isSuccessful()).isTrue();
-    ArrayList<FieldMapping> fieldsMappings = getFieldMappings(result);
+    List<FieldMapping> fieldsMappings = getFieldMappings(result);
     assertThat(fieldsMappings).hasSize(1);
     assertThat(fieldsMappings.get(0))
         .isEqualTo(
@@ -277,7 +289,7 @@ public class CreateMappingPreconditionCheckFunctionTest {
 
     assertThat(result.isSuccessful()).isTrue();
     verify(cache).registerPdxMetaData(any());
-    ArrayList<FieldMapping> fieldsMappings = getFieldMappings(result);
+    List<FieldMapping> fieldsMappings = getFieldMappings(result);
     assertThat(fieldsMappings).hasSize(1);
     assertThat(fieldsMappings.get(0))
         .isEqualTo(
@@ -312,6 +324,15 @@ public class CreateMappingPreconditionCheckFunctionTest {
     when(tableMetaDataView.getColumnNames()).thenReturn(columnNames);
     when(tableMetaDataView.isColumnNullable("col1")).thenReturn(false);
     when(tableMetaDataView.getColumnDataType("col1")).thenReturn(JDBCType.DATE);
+
+
+    // Map<String, TableMetaData.ColumnMetaData> columnMetaDataMap = new HashMap<>();
+    // columnMetaDataMap.put("col1", new TableMetaData.ColumnMetaData(JDBCType.DATE, false));
+    //// columnMetaDataMap.put("col2", new TableMetaData.ColumnMetaData(JDBCType.DATE, true));
+    // tableMetaDataView = new TableMetaData("catalogName", "schemaName", "tableName",
+    // Arrays.asList("col1", "col2"), "quoteString",
+    // columnMetaDataMap);
+
     PdxField pdxField1 = mock(PdxField.class);
     when(pdxField1.getFieldName()).thenReturn("COL1");
     when(pdxField1.getFieldType()).thenReturn(FieldType.LONG);
@@ -324,17 +345,17 @@ public class CreateMappingPreconditionCheckFunctionTest {
         mock(ReflectionBasedAutoSerializer.class);
     PdxWriter pdxWriter = mock(PdxWriter.class);
     when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(true);
-    doReturn(reflectionedBasedAutoSerializer).when(function)
-        .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
-    doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
+    // doReturn(reflectionedBasedAutoSerializer).when(function)
+    // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
     SerializationException ex = new SerializationException("test");
     doThrow(ex).when(cache).registerPdxMetaData(any());
 
     CliFunctionResult result = function.executeFunction(context);
 
     assertThat(result.isSuccessful()).isTrue();
-    verify(function).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
-    ArrayList<FieldMapping> fieldsMappings = getFieldMappings(result);
+    // verify(function).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    List<FieldMapping> fieldsMappings = getFieldMappings(result);
     assertThat(fieldsMappings).hasSize(1);
     assertThat(fieldsMappings.get(0))
         .isEqualTo(
@@ -342,9 +363,9 @@ public class CreateMappingPreconditionCheckFunctionTest {
   }
 
   @SuppressWarnings("unchecked")
-  private ArrayList<FieldMapping> getFieldMappings(CliFunctionResult result) {
+  private List<FieldMapping> getFieldMappings(CliFunctionResult result) {
     Object[] outputs = (Object[]) result.getResultObject();
-    return (ArrayList<FieldMapping>) outputs[1];
+    return (List<FieldMapping>) outputs[1];
   }
 
   @Test
@@ -365,13 +386,13 @@ public class CreateMappingPreconditionCheckFunctionTest {
         mock(ReflectionBasedAutoSerializer.class);
     PdxWriter pdxWriter = mock(PdxWriter.class);
     when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(false);
-    doReturn(reflectionedBasedAutoSerializer).when(function)
-        .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    // doReturn(reflectionedBasedAutoSerializer).when(function)
+    // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
     SerializationException ex = new SerializationException("test");
     doThrow(ex).when(cache).registerPdxMetaData(any());
-    doReturn(reflectionedBasedAutoSerializer).when(function)
-        .getReflectionBasedAutoSerializer(PdxClassDummy.class.getName());
-    doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
+    // doReturn(reflectionedBasedAutoSerializer).when(function)
+    // .getReflectionBasedAutoSerializer(PdxClassDummy.class.getName());
+    // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
 
     Throwable throwable = catchThrowable(() -> function.executeFunction(context));
 

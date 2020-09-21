@@ -256,31 +256,37 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
     }
 
     try (Connection connection = dataSource.getConnection()) {
-      TableMetaDataView tableMetaData =
-          getTableMetaDataManager().getTableMetaDataView(connection, regionMapping);
-      // TODO the table name returned in tableMetaData may be different than
-      // the table name specified on the command line at this point.
-      // Do we want to update the region mapping to hold the "real" table name
-      List<FieldMapping> fieldMappings = new ArrayList<>();
-      Set<String> columnNames = tableMetaData.getColumnNames();
-      if (columnNames.size() != pdxType.getFieldCount()) {
-        throw new JdbcConnectorException(
-            "The table and pdx class must have the same number of columns/fields. But the table has "
-                + columnNames.size()
-                + " columns and the pdx class has " + pdxType.getFieldCount() + " fields.");
-      }
-      List<PdxField> pdxFields = pdxType.getFields();
-      for (String jdbcName : columnNames) {
-        boolean isNullable = tableMetaData.isColumnNullable(jdbcName);
-        JDBCType jdbcType = tableMetaData.getColumnDataType(jdbcName);
-        FieldMapping fieldMapping =
-            createFieldMapping(jdbcName, jdbcType.getName(), isNullable, pdxFields);
-        fieldMappings.add(fieldMapping);
-      }
-      return fieldMappings;
+      TableMetaDataView tableMetaData = getTableMetaDataView(regionMapping, dataSource);
+      return createDefaultFieldMapping(regionMapping, pdxType, tableMetaData);
     } catch (SQLException e) {
       throw JdbcConnectorException.createException(e);
     }
+  }
+
+  @Override
+  public List<FieldMapping> createDefaultFieldMapping(RegionMapping regionMapping,
+      PdxType pdxType, TableMetaDataView tableMetaDataView) {
+
+    // TODO the table name returned in tableMetaData may be different than
+    // the table name specified on the command line at this point.
+    // Do we want to update the region mapping to hold the "real" table name
+    List<FieldMapping> fieldMappings = new ArrayList<>();
+    Set<String> columnNames = tableMetaDataView.getColumnNames();
+    if (columnNames.size() != pdxType.getFieldCount()) {
+      throw new JdbcConnectorException(
+          "The table and pdx class must have the same number of columns/fields. But the table has "
+              + columnNames.size()
+              + " columns and the pdx class has " + pdxType.getFieldCount() + " fields.");
+    }
+    List<PdxField> pdxFields = pdxType.getFields();
+    for (String jdbcName : columnNames) {
+      boolean isNullable = tableMetaDataView.isColumnNullable(jdbcName);
+      JDBCType jdbcType = tableMetaDataView.getColumnDataType(jdbcName);
+      FieldMapping fieldMapping =
+          createFieldMapping(jdbcName, jdbcType.getName(), isNullable, pdxFields);
+      fieldMappings.add(fieldMapping);
+    }
+    return fieldMappings;
   }
 
   private FieldMapping createFieldMapping(String jdbcName, String jdbcType, boolean jdbcNullable,
