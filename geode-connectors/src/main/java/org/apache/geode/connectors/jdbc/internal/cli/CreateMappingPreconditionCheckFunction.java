@@ -67,7 +67,6 @@ public class CreateMappingPreconditionCheckFunction extends CliFunction<Object[]
           + dataSourceName + "'.");
     }
 
-    // TODO dataSource有りバージョン追加
     TableMetaDataView tableMetaData = service.getTableMetaDataView(regionMapping);
 
     Class<?> pdxClazz =

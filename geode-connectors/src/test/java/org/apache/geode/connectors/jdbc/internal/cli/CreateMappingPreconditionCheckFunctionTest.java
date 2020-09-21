@@ -23,7 +23,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,8 +57,6 @@ import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.management.internal.functions.CliFunctionResult;
 import org.apache.geode.pdx.FieldType;
-import org.apache.geode.pdx.PdxWriter;
-import org.apache.geode.pdx.ReflectionBasedAutoSerializer;
 import org.apache.geode.pdx.internal.PdxField;
 import org.apache.geode.pdx.internal.PdxType;
 import org.apache.geode.pdx.internal.TypeRegistry;
@@ -121,7 +118,6 @@ public class CreateMappingPreconditionCheckFunctionTest {
     when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(pdxType);
     tableMetaDataView = mock(TableMetaDataView.class);
 
-    // TODO Arg OK? Return OK?
     when(cache.getService(eq(JdbcConnectorService.class))).thenReturn(service);
     doReturn(tableMetaDataView).when(service).getTableMetaDataView(regionMapping);
 
@@ -170,16 +166,6 @@ public class CreateMappingPreconditionCheckFunctionTest {
         .hasMessage("JDBC data-source named \"" + DATA_SOURCE_NAME
             + "\" not found. Create it with gfsh 'create data-source --pooled --name="
             + DATA_SOURCE_NAME + "'.");
-  }
-
-  @Test
-  public void executeFunctionThrowsIfDataSourceGetConnectionThrows() throws SQLException {
-    String reason = "connection failed";
-    when(dataSource.getConnection()).thenThrow(new SQLException(reason));
-
-    Throwable throwable = catchThrowable(() -> function.executeFunction(context));
-
-    assertThat(throwable).isInstanceOf(JdbcConnectorException.class).hasMessageContaining(reason);
   }
 
   @Test
@@ -319,11 +305,11 @@ public class CreateMappingPreconditionCheckFunctionTest {
     when(pdxType.getFields()).thenReturn(singletonList(pdxField1));
     when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(null)
         .thenReturn(pdxType);
-    String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
-    ReflectionBasedAutoSerializer reflectionedBasedAutoSerializer =
-        mock(ReflectionBasedAutoSerializer.class);
-    PdxWriter pdxWriter = mock(PdxWriter.class);
-    when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(true);
+    // String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
+    // ReflectionBasedAutoSerializer reflectionedBasedAutoSerializer =
+    // mock(ReflectionBasedAutoSerializer.class);
+    // PdxWriter pdxWriter = mock(PdxWriter.class);
+    // when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(true);
     // doReturn(reflectionedBasedAutoSerializer).when(function)
     // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
     // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
@@ -360,18 +346,8 @@ public class CreateMappingPreconditionCheckFunctionTest {
     when(pdxType.getFields()).thenReturn(singletonList(pdxField1));
     when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(null)
         .thenReturn(pdxType);
-    String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
-    ReflectionBasedAutoSerializer reflectionedBasedAutoSerializer =
-        mock(ReflectionBasedAutoSerializer.class);
-    PdxWriter pdxWriter = mock(PdxWriter.class);
-    when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(false);
-    // doReturn(reflectionedBasedAutoSerializer).when(function)
-    // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
     SerializationException ex = new SerializationException("test");
     doThrow(ex).when(cache).registerPdxMetaData(any());
-    // doReturn(reflectionedBasedAutoSerializer).when(function)
-    // .getReflectionBasedAutoSerializer(PdxClassDummy.class.getName());
-    // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
 
     Throwable throwable = catchThrowable(() -> function.executeFunction(context));
 
