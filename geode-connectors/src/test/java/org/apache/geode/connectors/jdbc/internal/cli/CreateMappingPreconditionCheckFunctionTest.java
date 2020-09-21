@@ -53,7 +53,6 @@ import org.apache.geode.connectors.jdbc.JdbcConnectorException;
 import org.apache.geode.connectors.jdbc.internal.JdbcConnectorService;
 import org.apache.geode.connectors.jdbc.internal.JdbcConnectorServiceImpl;
 import org.apache.geode.connectors.jdbc.internal.TableMetaDataView;
-import org.apache.geode.connectors.jdbc.internal.TableMetaDataManager;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.InternalCache;
@@ -77,7 +76,6 @@ public class CreateMappingPreconditionCheckFunctionTest {
   private InternalCache cache;
   private JdbcConnectorService service;
   private TypeRegistry typeRegistry;
-  private TableMetaDataManager tableMetaDataManager;
   private TableMetaDataView tableMetaDataView;
   private DataSource dataSource;
   private PdxType pdxType = mock(PdxType.class);
@@ -121,17 +119,10 @@ public class CreateMappingPreconditionCheckFunctionTest {
     Connection connection = mock(Connection.class);
     when(dataSource.getConnection()).thenReturn(connection);
     when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(pdxType);
-    tableMetaDataManager = mock(TableMetaDataManager.class);
     tableMetaDataView = mock(TableMetaDataView.class);
-    when(tableMetaDataManager.getTableMetaDataView(connection, regionMapping))
-        .thenReturn(tableMetaDataView);
 
     // TODO Arg OK? Return OK?
     when(cache.getService(eq(JdbcConnectorService.class))).thenReturn(service);
-    // doReturn(service).when(cache).getService(eq(JdbcConnectorService.class));
-    // doReturn(pdxType).when(service).getPdxTypeForClass(cache, PdxClassDummy.class);
-    // when(service.createDefaultFieldMapping(regionMapping, pdxType, dataSource))
-    // .thenReturn(new ArrayList());
     doReturn(tableMetaDataView).when(service).getTableMetaDataView(regionMapping);
 
     setupFunction();
@@ -147,9 +138,6 @@ public class CreateMappingPreconditionCheckFunctionTest {
     function = spy(CreateMappingPreconditionCheckFunction.class);
     doReturn(dataSource).when(function).getDataSource(DATA_SOURCE_NAME);
     doReturn(PdxClassDummy.class).when(function).loadClass(PDX_CLASS_NAME);
-    // doReturn(null).when(function).getReflectionBasedAutoSerializer(any());
-    // doReturn(null).when(function).createPdxWriter(same(typeRegistry), any());
-    // doReturn(tableMetaDataManager).when(function).getTableMetaDataManager();
   }
 
   @Test
@@ -324,15 +312,6 @@ public class CreateMappingPreconditionCheckFunctionTest {
     when(tableMetaDataView.getColumnNames()).thenReturn(columnNames);
     when(tableMetaDataView.isColumnNullable("col1")).thenReturn(false);
     when(tableMetaDataView.getColumnDataType("col1")).thenReturn(JDBCType.DATE);
-
-
-    // Map<String, TableMetaData.ColumnMetaData> columnMetaDataMap = new HashMap<>();
-    // columnMetaDataMap.put("col1", new TableMetaData.ColumnMetaData(JDBCType.DATE, false));
-    //// columnMetaDataMap.put("col2", new TableMetaData.ColumnMetaData(JDBCType.DATE, true));
-    // tableMetaDataView = new TableMetaData("catalogName", "schemaName", "tableName",
-    // Arrays.asList("col1", "col2"), "quoteString",
-    // columnMetaDataMap);
-
     PdxField pdxField1 = mock(PdxField.class);
     when(pdxField1.getFieldName()).thenReturn("COL1");
     when(pdxField1.getFieldType()).thenReturn(FieldType.LONG);
