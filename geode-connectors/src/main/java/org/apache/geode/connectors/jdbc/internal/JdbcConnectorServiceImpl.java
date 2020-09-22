@@ -329,7 +329,7 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
    * @return the generated PdxType
    * @throws JdbcConnectorException if a PdxType can not be generated
    */
-  private PdxType generatePdxTypeForClass(InternalCache cache, TypeRegistry typeRegistry,
+  PdxType generatePdxTypeForClass(InternalCache cache, TypeRegistry typeRegistry,
       Class<?> clazz) {
     Object object = createInstance(clazz);
     try {
