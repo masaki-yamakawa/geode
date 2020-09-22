@@ -17,10 +17,14 @@ package org.apache.geode.connectors.jdbc.internal;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,14 +42,18 @@ import javax.sql.DataSource;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.geode.SerializationException;
 import org.apache.geode.connectors.jdbc.JdbcConnectorException;
 import org.apache.geode.connectors.jdbc.internal.configuration.FieldMapping;
 import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.internal.cache.InternalCache;
 import org.apache.geode.internal.cache.extension.ExtensionPoint;
 import org.apache.geode.pdx.FieldType;
+import org.apache.geode.pdx.PdxWriter;
+import org.apache.geode.pdx.ReflectionBasedAutoSerializer;
 import org.apache.geode.pdx.internal.PdxField;
 import org.apache.geode.pdx.internal.PdxType;
+import org.apache.geode.pdx.internal.TypeRegistry;
 
 public class JdbcConnectorServiceTest {
 
@@ -71,6 +79,14 @@ public class JdbcConnectorServiceTest {
   DataSource dataSource = mock(DataSource.class);
   Connection connection = mock(Connection.class);
   PdxType pdxType = mock(PdxType.class);
+  TypeRegistry typeRegistry = mock(TypeRegistry.class);
+
+  public static class PdxClassDummy {
+  }
+
+  public static class PdxClassDummyNoZeroArg {
+    public PdxClassDummyNoZeroArg(@SuppressWarnings("unused") int arg) {}
+  }
 
   @SuppressWarnings("unchecked")
   @Before
@@ -114,6 +130,8 @@ public class JdbcConnectorServiceTest {
     when(field2.getFieldType()).thenReturn(FieldType.STRING);
     List<PdxField> pdxFields = Arrays.asList(field1, field2);
     when(pdxType.getFields()).thenReturn(pdxFields);
+
+    when(cache.getPdxRegistry()).thenReturn(typeRegistry);
 
     doReturn(dataSource).when(service).getDataSource(DATA_SOURCE_NAME);
     doReturn(manager).when(service).getTableMetaDataManager();
@@ -359,39 +377,85 @@ public class JdbcConnectorServiceTest {
             view.getColumnNames().size(), pdxType.getFieldCount()));
   }
 
-  // @Test
-  // public void executeFunctionGivenNonPdxUsesReflectionBasedAutoSerializer() {
-  // Set<String> columnNames = new LinkedHashSet<>(singletonList("col1"));
-  // when(tableMetaDataView.getColumnNames()).thenReturn(columnNames);
-  // when(tableMetaDataView.isColumnNullable("col1")).thenReturn(false);
-  // when(tableMetaDataView.getColumnDataType("col1")).thenReturn(JDBCType.DATE);
-  // PdxField pdxField1 = mock(PdxField.class);
-  // when(pdxField1.getFieldName()).thenReturn("COL1");
-  // when(pdxField1.getFieldType()).thenReturn(FieldType.LONG);
-  // when(pdxType.getFieldCount()).thenReturn(1);
-  // when(pdxType.getFields()).thenReturn(singletonList(pdxField1));
-  // when(typeRegistry.getExistingTypeForClass(CreateMappingPreconditionCheckFunctionTest.PdxClassDummy.class)).thenReturn(null)
-  // .thenReturn(pdxType);
-  // // String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
-  // // ReflectionBasedAutoSerializer reflectionedBasedAutoSerializer =
-  // // mock(ReflectionBasedAutoSerializer.class);
-  // // PdxWriter pdxWriter = mock(PdxWriter.class);
-  // // when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(true);
-  // // doReturn(reflectionedBasedAutoSerializer).when(function)
-  // // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
-  // // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
-  // SerializationException ex = new SerializationException("test");
-  // doThrow(ex).when(cache).registerPdxMetaData(any());
-  //
-  // CliFunctionResult result = function.executeFunction(context);
-  //
-  // assertThat(result.isSuccessful()).isTrue();
-  // // verify(function).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
-  // List<FieldMapping> fieldsMappings = getFieldMappings(result);
-  // assertThat(fieldsMappings).hasSize(1);
-  // assertThat(fieldsMappings.get(0))
-  // .isEqualTo(
-  // new FieldMapping("COL1", FieldType.LONG.name(), "col1", JDBCType.DATE.name(), false));
-  // }
+  @Test
+  public void getPdxTypeForClassSucceedsWithExistingPdxType() {
+    when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(pdxType);
+
+    PdxType result = service.getPdxTypeForClass(cache, PdxClassDummy.class);
+    verify(service, never()).generatePdxTypeForClass(cache, typeRegistry, PdxClassDummy.class);
+    assertThat(result).isEqualTo(pdxType);
+  }
+
+  @Test
+  public void getPdxTypeForClassSucceedsWithGeneratingPdxType() {
+    when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(null)
+        .thenReturn(pdxType);
+
+    PdxType result = service.getPdxTypeForClass(cache, PdxClassDummy.class);
+    verify(service, times(1)).generatePdxTypeForClass(cache, typeRegistry, PdxClassDummy.class);
+    verify(cache, times(1)).registerPdxMetaData(any());
+    assertThat(result).isEqualTo(pdxType);
+  }
+
+  @Test
+  public void getPdxTypeForClassSucceedsWithGivenNonPdxUsesReflectionBasedAutoSerializer() {
+    when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(null)
+        .thenReturn(pdxType);
+
+    SerializationException ex = new SerializationException("test");
+    doThrow(ex).when(cache).registerPdxMetaData(any());
+
+    ReflectionBasedAutoSerializer serializer = mock(ReflectionBasedAutoSerializer.class);
+    PdxWriter pdxWriter = mock(PdxWriter.class);
+    String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
+    doReturn(serializer).when(service)
+        .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    doReturn(pdxWriter).when(service).createPdxWriter(same(typeRegistry), any());
+    when(serializer.toData(any(), same(pdxWriter))).thenReturn(true);
+
+    PdxType result = service.getPdxTypeForClass(cache, PdxClassDummy.class);
+    verify(service, times(1)).generatePdxTypeForClass(cache, typeRegistry, PdxClassDummy.class);
+    verify(cache, times(1)).registerPdxMetaData(any());
+    verify(service, times(1)).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    assertThat(result).isEqualTo(pdxType);
+  }
+
+  @Test
+  public void getPdxTypeForClassThrowsExceptionWhenGivenPdxRegistrationFailsAndReflectionBasedAutoSerializer() {
+    when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(null);
+
+    SerializationException ex = new SerializationException("test");
+    doThrow(ex).when(cache).registerPdxMetaData(any());
+
+    ReflectionBasedAutoSerializer serializer = mock(ReflectionBasedAutoSerializer.class);
+    PdxWriter pdxWriter = mock(PdxWriter.class);
+    String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
+    doReturn(serializer).when(service)
+        .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    doReturn(pdxWriter).when(service).createPdxWriter(same(typeRegistry), any());
+    when(serializer.toData(any(), same(pdxWriter))).thenReturn(false);
+
+    Throwable throwable =
+        catchThrowable(() -> service.getPdxTypeForClass(cache, PdxClassDummy.class));
+    verify(service, times(1)).generatePdxTypeForClass(cache, typeRegistry, PdxClassDummy.class);
+    verify(cache, times(1)).registerPdxMetaData(any());
+    verify(service, times(1)).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class).hasMessageContaining(
+        String.format(
+            "Could not generate a PdxType using the ReflectionBasedAutoSerializer for the class  %s after failing to register pdx metadata due to %s. Check the server log for details.",
+            PdxClassDummy.class.getName(), ex.getMessage()));
+  }
+
+  @Test
+  public void getPdxTypeForClassThrowsExceptionWhenGivenPdxSerializableWithNoZeroArgConstructor() {
+    Throwable throwable =
+        catchThrowable(() -> service.getPdxTypeForClass(cache, PdxClassDummyNoZeroArg.class));
+    verify(service, times(1)).generatePdxTypeForClass(cache, typeRegistry,
+        PdxClassDummyNoZeroArg.class);
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class).hasMessageContaining(
+        String.format(
+            "Could not generate a PdxType for the class %s because it did not have a public zero arg constructor.",
+            PdxClassDummyNoZeroArg.class.getName()));
+  }
 
 }
