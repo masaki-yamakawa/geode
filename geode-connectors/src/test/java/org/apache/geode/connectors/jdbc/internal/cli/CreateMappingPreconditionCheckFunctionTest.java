@@ -292,41 +292,6 @@ public class CreateMappingPreconditionCheckFunctionTest {
             "Could not generate a PdxType for the class org.apache.geode.connectors.jdbc.internal.cli.CreateMappingPreconditionCheckFunctionTest$PdxClassDummyNoZeroArg because it did not have a public zero arg constructor. Details: java.lang.NoSuchMethodException: org.apache.geode.connectors.jdbc.internal.cli.CreateMappingPreconditionCheckFunctionTest$PdxClassDummyNoZeroArg.<init>()");
   }
 
-  @Test
-  public void executeFunctionGivenNonPdxUsesReflectionBasedAutoSerializer() {
-    Set<String> columnNames = new LinkedHashSet<>(singletonList("col1"));
-    when(tableMetaDataView.getColumnNames()).thenReturn(columnNames);
-    when(tableMetaDataView.isColumnNullable("col1")).thenReturn(false);
-    when(tableMetaDataView.getColumnDataType("col1")).thenReturn(JDBCType.DATE);
-    PdxField pdxField1 = mock(PdxField.class);
-    when(pdxField1.getFieldName()).thenReturn("COL1");
-    when(pdxField1.getFieldType()).thenReturn(FieldType.LONG);
-    when(pdxType.getFieldCount()).thenReturn(1);
-    when(pdxType.getFields()).thenReturn(singletonList(pdxField1));
-    when(typeRegistry.getExistingTypeForClass(PdxClassDummy.class)).thenReturn(null)
-        .thenReturn(pdxType);
-    // String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
-    // ReflectionBasedAutoSerializer reflectionedBasedAutoSerializer =
-    // mock(ReflectionBasedAutoSerializer.class);
-    // PdxWriter pdxWriter = mock(PdxWriter.class);
-    // when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(true);
-    // doReturn(reflectionedBasedAutoSerializer).when(function)
-    // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
-    // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
-    SerializationException ex = new SerializationException("test");
-    doThrow(ex).when(cache).registerPdxMetaData(any());
-
-    CliFunctionResult result = function.executeFunction(context);
-
-    assertThat(result.isSuccessful()).isTrue();
-    // verify(function).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
-    List<FieldMapping> fieldsMappings = getFieldMappings(result);
-    assertThat(fieldsMappings).hasSize(1);
-    assertThat(fieldsMappings.get(0))
-        .isEqualTo(
-            new FieldMapping("COL1", FieldType.LONG.name(), "col1", JDBCType.DATE.name(), false));
-  }
-
   @SuppressWarnings("unchecked")
   private List<FieldMapping> getFieldMappings(CliFunctionResult result) {
     Object[] outputs = (Object[]) result.getResultObject();

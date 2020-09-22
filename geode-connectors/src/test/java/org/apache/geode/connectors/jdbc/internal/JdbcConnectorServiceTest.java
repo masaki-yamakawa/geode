@@ -216,4 +216,66 @@ public class JdbcConnectorServiceTest {
     when(mapping.getIds()).thenReturn(KEY_COLUMN_NAME + "," + COMPOSITE_KEY_COLUMN_NAME);
     service.validateMapping(mapping);
   }
+
+  @Test
+  public void getTableMetaDataViewSucceeds() {
+    TableMetaDataView result = service.getTableMetaDataView(mapping);
+    assertThat(result).isEqualTo(view);
+    verify(manager).getTableMetaDataView(connection, mapping);
+  }
+
+  @Test
+  public void getTableMetaDataViewThrowsExceptionWhenDataSourceDoesNotExist() {
+    doReturn(null).when(service).getDataSource(DATA_SOURCE_NAME);
+    Throwable throwable = catchThrowable(() -> service.getTableMetaDataView(mapping));
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class).hasMessageContaining(
+        String.format("No datasource \"%s\" found when getting table meta data \"%s\"",
+            mapping.getDataSourceName(), mapping.getRegionName()));
+  }
+
+  @Test
+  public void getTableMetaDataViewThrowsExceptionWhenGetConnectionHasSqlException()
+      throws SQLException {
+    when(dataSource.getConnection()).thenThrow(SQLException.class);
+    Throwable throwable = catchThrowable(() -> service.getTableMetaDataView(mapping));
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class).hasMessageContaining(
+        "Exception thrown while connecting to datasource \"dataSource\": null");
+    verify(connection, never()).close();
+  }
+
+  // @Test
+  // public void executeFunctionGivenNonPdxUsesReflectionBasedAutoSerializer() {
+  // Set<String> columnNames = new LinkedHashSet<>(singletonList("col1"));
+  // when(tableMetaDataView.getColumnNames()).thenReturn(columnNames);
+  // when(tableMetaDataView.isColumnNullable("col1")).thenReturn(false);
+  // when(tableMetaDataView.getColumnDataType("col1")).thenReturn(JDBCType.DATE);
+  // PdxField pdxField1 = mock(PdxField.class);
+  // when(pdxField1.getFieldName()).thenReturn("COL1");
+  // when(pdxField1.getFieldType()).thenReturn(FieldType.LONG);
+  // when(pdxType.getFieldCount()).thenReturn(1);
+  // when(pdxType.getFields()).thenReturn(singletonList(pdxField1));
+  // when(typeRegistry.getExistingTypeForClass(CreateMappingPreconditionCheckFunctionTest.PdxClassDummy.class)).thenReturn(null)
+  // .thenReturn(pdxType);
+  // // String domainClassNameInAutoSerializer = "\\Q" + PdxClassDummy.class.getName() + "\\E";
+  // // ReflectionBasedAutoSerializer reflectionedBasedAutoSerializer =
+  // // mock(ReflectionBasedAutoSerializer.class);
+  // // PdxWriter pdxWriter = mock(PdxWriter.class);
+  // // when(reflectionedBasedAutoSerializer.toData(any(), same(pdxWriter))).thenReturn(true);
+  // // doReturn(reflectionedBasedAutoSerializer).when(function)
+  // // .getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+  // // doReturn(pdxWriter).when(function).createPdxWriter(same(typeRegistry), any());
+  // SerializationException ex = new SerializationException("test");
+  // doThrow(ex).when(cache).registerPdxMetaData(any());
+  //
+  // CliFunctionResult result = function.executeFunction(context);
+  //
+  // assertThat(result.isSuccessful()).isTrue();
+  // // verify(function).getReflectionBasedAutoSerializer(domainClassNameInAutoSerializer);
+  // List<FieldMapping> fieldsMappings = getFieldMappings(result);
+  // assertThat(fieldsMappings).hasSize(1);
+  // assertThat(fieldsMappings.get(0))
+  // .isEqualTo(
+  // new FieldMapping("COL1", FieldType.LONG.name(), "col1", JDBCType.DATE.name(), false));
+  // }
+
 }
