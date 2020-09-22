@@ -230,7 +230,7 @@ public class JdbcConnectorServiceImpl implements JdbcConnectorService {
     DataSource dataSource = getDataSource(regionMapping.getDataSourceName());
     if (dataSource == null) {
       throw new JdbcConnectorException("No datasource \"" + regionMapping.getDataSourceName()
-          + "\" found when creating mapping \"" + regionMapping.getRegionName() + "\"");
+          + "\" found when getting table meta data \"" + regionMapping.getRegionName() + "\"");
     }
     return getTableMetaDataView(regionMapping, dataSource);
   }
