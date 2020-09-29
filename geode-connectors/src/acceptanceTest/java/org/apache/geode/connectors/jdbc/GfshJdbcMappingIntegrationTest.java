@@ -49,6 +49,75 @@ public class GfshJdbcMappingIntegrationTest extends JdbcMappingIntegrationTest {
         (InternalCache) new CacheFactory().set("locators", "").set("mcast-port", "0").create();
     Set<DistributedMember> targetMembers = findMembers(cache, null, null);
 
+    CliFunctionResult createRegionFuncResult = executeCreateRegionFunction(targetMembers);
+    System.out.println("createRegionFuncResult=" + createRegionFuncResult);
+
+    CliFunctionResult createDataStoreFuncResult =
+        executeCreateJndiBindingFunction(targetMembers, dbRule.getConnectionUrl());
+    System.out.println("createDataStoreFuncArgs=" + createDataStoreFuncResult);
+
+    CliFunctionResult createMappingFuncResult =
+        executeCreateMappingFunction(Employee.class.getName(), targetMembers);
+    System.out.println("createMappingFuncResult=" + createMappingFuncResult);
+
+    return cache;
+  }
+
+  @Override
+  protected InternalCache createCacheAndCreateJdbcMappingWithWrongDataSource(
+      String cacheXmlTestName) throws Exception {
+    InternalCache cache =
+        (InternalCache) new CacheFactory().set("locators", "").set("mcast-port", "0").create();
+    Set<DistributedMember> targetMembers = findMembers(cache, null, null);
+
+    CliFunctionResult createRegionFuncResult = executeCreateRegionFunction(targetMembers);
+    System.out.println("createRegionFuncResult=" + createRegionFuncResult);
+
+    CliFunctionResult createDataStoreFuncResult =
+        executeCreateJndiBindingFunction(targetMembers, "jdbc:mysql://localhost/test");
+    System.out.println("createDataStoreFuncArgs=" + createDataStoreFuncResult);
+
+    CliFunctionResult createMappingFuncResult =
+        executeCreateMappingFunction(Employee.class.getName(), targetMembers);
+    System.out.println("createMappingFuncResult=" + createMappingFuncResult);
+
+    return cache;
+  }
+
+  @Override
+  protected InternalCache createCacheAndCreateJdbcMappingWithWrongPdxName(String cacheXmlTestName)
+      throws Exception {
+    InternalCache cache =
+        (InternalCache) new CacheFactory().set("locators", "").set("mcast-port", "0").create();
+    Set<DistributedMember> targetMembers = findMembers(cache, null, null);
+
+    CliFunctionResult createRegionFuncResult = executeCreateRegionFunction(targetMembers);
+    System.out.println("createRegionFuncResult=" + createRegionFuncResult);
+
+    CliFunctionResult createDataStoreFuncResult =
+        executeCreateJndiBindingFunction(targetMembers, dbRule.getConnectionUrl());
+    System.out.println("createDataStoreFuncArgs=" + createDataStoreFuncResult);
+
+    CliFunctionResult createMappingFuncResult =
+        executeCreateMappingFunction("org.apache.geode.connectors.jdbc.NoPdx", targetMembers);
+    System.out.println("createMappingFuncResult=" + createMappingFuncResult);
+
+    return cache;
+  }
+
+  private Set<DistributedMember> findMembers(InternalCache cache, String[] groups,
+      String[] members) {
+    return ManagementUtils.findMembers(groups, members, cache);
+  }
+
+  private CliFunctionResult executeFunction(Function<?> function, Object args,
+      Set<DistributedMember> targetMembers) {
+    ResultCollector<?, ?> rc = ManagementUtils.executeFunction(function, args, targetMembers);
+    List<CliFunctionResult> results = CliFunctionResult.cleanResults((List<?>) rc.getResult());
+    return results.size() > 0 ? results.get(0) : null;
+  }
+
+  private CliFunctionResult executeCreateRegionFunction(Set<DistributedMember> targetMembers) {
     RegionConfig regionConfig = new RegionConfig();
     regionConfig.setName(REGION_NAME);
     regionConfig.setType(RegionType.REPLICATE);
@@ -58,28 +127,31 @@ public class GfshJdbcMappingIntegrationTest extends JdbcMappingIntegrationTest {
         new CreateRegionFunctionArgs(REGION_NAME, regionConfig, false);
     CliFunctionResult createRegionFuncResult =
         executeFunction(RegionCreateFunction.INSTANCE, createRegionFuncArgs, targetMembers);
-    // TODO
-    System.out.println("############createRegionFuncResult=" + createRegionFuncResult);
+    return createRegionFuncResult;
+  }
 
+  private CliFunctionResult executeCreateJndiBindingFunction(Set<DistributedMember> targetMembers,
+      String connectionUrl) {
     JndiBindingsType.JndiBinding jndiConfig = new JndiBindingsType.JndiBinding();
-    jndiConfig.setConnectionUrl(dbRule.getConnectionUrl());
+    jndiConfig.setConnectionUrl(connectionUrl);
     jndiConfig.setJndiName(DATA_SOURCE_NAME);
     jndiConfig.setType(CreateJndiBindingCommand.DATASOURCE_TYPE.SIMPLE.getType());
     Object[] createDataStoreFuncArgs = new Object[] {jndiConfig, true};
-    CliFunctionResult rc2 =
+    CliFunctionResult createDataStoreFuncResult =
         executeFunction(new CreateJndiBindingFunction(), createDataStoreFuncArgs, targetMembers);
-    // TODO
-    System.out.println("############createDataStoreFuncArgs=" + createDataStoreFuncArgs);
+    return createDataStoreFuncResult;
+  }
 
-    RegionMapping mapping = new RegionMapping(REGION_NAME, Employee.class.getName(),
+  private CliFunctionResult executeCreateMappingFunction(String pdxClassName,
+      Set<DistributedMember> targetMembers) throws Exception {
+    RegionMapping mapping = new RegionMapping(REGION_NAME, pdxClassName,
         REGION_TABLE_NAME, DATA_SOURCE_NAME, "id", null, null);
     Object[] createMappingPreconditionCheckFuncArgs = new Object[] {mapping, null, null};
     CliFunctionResult createMappingPreconditionCheckFuncResult = executeFunction(
         new CreateMappingPreconditionCheckFunction(), createMappingPreconditionCheckFuncArgs,
         Collections.singleton(targetMembers.iterator().next()));
-    // TODO
-    System.out.println("############createMappingPreconditionCheckFuncResult="
-        + createMappingPreconditionCheckFuncResult);
+    System.out.println(
+        "createMappingPreconditionCheckFuncResult=" + createMappingPreconditionCheckFuncResult);
 
     if (createMappingPreconditionCheckFuncResult.isSuccessful()) {
       Object[] preconditionOutput =
@@ -107,20 +179,20 @@ public class GfshJdbcMappingIntegrationTest extends JdbcMappingIntegrationTest {
     CreateMappingFunction createMappingFunction = constructor.newInstance();
     CliFunctionResult createMappingFuncResult =
         executeFunction(createMappingFunction, createMappingFuncArgs, targetMembers);
-    System.out.println("############createMappingFuncResult=" + createMappingFuncResult);
-
-    return cache;
+    return createMappingFuncResult;
   }
 
-  private Set<DistributedMember> findMembers(InternalCache cache, String[] groups,
-      String[] members) {
-    return ManagementUtils.findMembers(groups, members, cache);
+  @Override
+  protected String getConnectWrongDataSourceMessage() {
+    return String.format(
+        "JDBC data-source named \"%s\" not found. Create it with gfsh 'create data-source --pooled --name=%s'.",
+        DATA_SOURCE_NAME, DATA_SOURCE_NAME);
   }
 
-  private CliFunctionResult executeFunction(Function<?> function, Object args,
-      Set<DistributedMember> targetMembers) {
-    ResultCollector<?, ?> rc = ManagementUtils.executeFunction(function, args, targetMembers);
-    List<CliFunctionResult> results = CliFunctionResult.cleanResults((List<?>) rc.getResult());
-    return results.size() > 0 ? results.get(0) : null;
-  }
+  @Override
+  public void mappingFailureWhenFieldMappingAndTableMetaDataUnMatch() throws Exception {}
+
+  @Override
+  public void mappingSuccessWhenPdxFieldAndTableMetaDataUnMatchButFieldMappingMatch()
+      throws Exception {}
 }

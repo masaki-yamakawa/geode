@@ -35,6 +35,7 @@ import org.apache.geode.connectors.jdbc.internal.configuration.RegionMapping;
 import org.apache.geode.connectors.jdbc.test.junit.rules.DatabaseConnectionRule;
 import org.apache.geode.connectors.jdbc.test.junit.rules.MySqlConnectionRule;
 import org.apache.geode.internal.cache.InternalCache;
+import org.apache.geode.internal.jndi.JNDIInvoker;
 import org.apache.geode.pdx.FieldType;
 import org.apache.geode.pdx.internal.AutoSerializableManager;
 
@@ -64,6 +65,8 @@ public abstract class JdbcMappingIntegrationTest {
 
   @After
   public void tearDown() throws Exception {
+    JNDIInvoker.unMapDatasource(DATA_SOURCE_NAME);
+
     if (cache != null) {
       cache.close();
     }
@@ -82,9 +85,21 @@ public abstract class JdbcMappingIntegrationTest {
   protected abstract InternalCache createCacheAndCreateJdbcMapping(String cacheXmlTestName)
       throws Exception;
 
+  protected abstract InternalCache createCacheAndCreateJdbcMappingWithWrongDataSource(
+      String cacheXmlTestName)
+      throws Exception;
+
+  protected abstract InternalCache createCacheAndCreateJdbcMappingWithWrongPdxName(
+      String cacheXmlTestName) throws Exception;
+
   private void createEmployeeTable() throws Exception {
     statement.execute("Create Table " + REGION_TABLE_NAME
         + " (id varchar(10) primary key not null, name varchar(10), age int)");
+  }
+
+  private void createEmployeeTableWithColumnNamesWithUnderscores() throws Exception {
+    statement.execute("Create Table " + REGION_TABLE_NAME
+        + " (id varchar(10) primary key not null, _name varchar(10), _age int)");
   }
 
   private List<FieldMapping> getEmployeeTableFieldMappings() {
@@ -92,6 +107,14 @@ public abstract class JdbcMappingIntegrationTest {
         new FieldMapping("id", FieldType.STRING.name(), "id", JDBCType.VARCHAR.name(), false),
         new FieldMapping("name", FieldType.STRING.name(), "name", JDBCType.VARCHAR.name(), true),
         new FieldMapping("age", FieldType.INT.name(), "age", JDBCType.INTEGER.name(), true));
+    return fieldMappings;
+  }
+
+  private List<FieldMapping> getEmployeeTableColumnNameWithUnderscoresFieldMappings() {
+    List<FieldMapping> fieldMappings = Arrays.asList(
+        new FieldMapping("id", FieldType.STRING.name(), "id", JDBCType.VARCHAR.name(), false),
+        new FieldMapping("name", FieldType.STRING.name(), "_name", JDBCType.VARCHAR.name(), true),
+        new FieldMapping("age", FieldType.INT.name(), "_age", JDBCType.INTEGER.name(), true));
     return fieldMappings;
   }
 
@@ -130,10 +153,72 @@ public abstract class JdbcMappingIntegrationTest {
   }
 
   @Test
+  public void mappingFailureWhenConnectWrongDataSource() {
+    Throwable throwable =
+        catchThrowable(() -> createCacheAndCreateJdbcMappingWithWrongDataSource("NoFieldMappings"));
+
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class)
+        .hasMessage(getConnectWrongDataSourceMessage());
+  }
+
+  protected abstract String getConnectWrongDataSourceMessage();
+
+  @Test
   public void mappingFailureWhenTableNotExists() {
     Throwable throwable = catchThrowable(() -> createCacheAndCreateJdbcMapping("NoFieldMappings"));
 
     assertThat(throwable).isInstanceOf(JdbcConnectorException.class)
         .hasMessage(String.format("No table was found that matches \"%s\"", REGION_TABLE_NAME));
+  }
+
+  @Test
+  public void mappingFailureWhenPdxNotExists() throws Exception {
+    createEmployeeTable();
+
+    Throwable throwable =
+        catchThrowable(() -> createCacheAndCreateJdbcMappingWithWrongPdxName("NoPdxName"));
+
+    assertThat(throwable).isInstanceOf(AssertionError.class)
+        .hasMessageContaining("[CacheXmlJdbcMappingIntegrationTest.NoPdxName.cache.xml]");
+  }
+
+  @Test
+  public void mappingFailureWhenPdxFieldAndTableMetaDataUnMatch() throws Exception {
+    createEmployeeTableWithColumnNamesWithUnderscores();
+
+    Throwable throwable = catchThrowable(() -> createCacheAndCreateJdbcMapping("NoFieldMappings"));
+
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class)
+        .hasMessage("No PDX field name matched the column name \"_name\"");
+  }
+
+  @Test
+  public void mappingFailureWhenFieldMappingAndTableMetaDataUnMatch() throws Exception {
+    createEmployeeTableWithColumnNamesWithUnderscores();
+
+    Throwable throwable = catchThrowable(() -> createCacheAndCreateJdbcMapping("FieldMappings"));
+
+    assertThat(throwable).isInstanceOf(JdbcConnectorException.class)
+        .hasMessageContaining(
+            String.format("Jdbc mapping for \"%s\" does not match table definition", REGION_NAME));
+  }
+
+  @Test
+  public void mappingSuccessWhenPdxFieldAndTableMetaDataUnMatchButFieldMappingMatch()
+      throws Exception {
+    createEmployeeTableWithColumnNamesWithUnderscores();
+
+    cache = createCacheAndCreateJdbcMapping("FieldMappingsColumnNamesWithUnderscores");
+    JdbcConnectorService service = cache.getService(JdbcConnectorService.class);
+
+    RegionMapping mapping = service.getMappingForRegion(REGION_NAME);
+    assertThat(mapping.getDataSourceName()).isEqualTo(DATA_SOURCE_NAME);
+    assertThat(mapping.getTableName()).isEqualTo(REGION_TABLE_NAME);
+    assertThat(mapping.getRegionName()).isEqualTo(REGION_NAME);
+    assertThat(mapping.getPdxName()).isEqualTo(Employee.class.getName());
+    assertThat(mapping.getIds()).isEqualTo("id");
+    assertThat(mapping.getFieldMappings().size()).isEqualTo(3);
+    assertThat(mapping.getFieldMappings())
+        .containsAll(getEmployeeTableColumnNameWithUnderscoresFieldMappings());
   }
 }

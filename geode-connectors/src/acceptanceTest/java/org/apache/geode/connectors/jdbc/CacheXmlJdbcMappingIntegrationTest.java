@@ -39,6 +39,29 @@ public class CacheXmlJdbcMappingIntegrationTest extends JdbcMappingIntegrationTe
     return cache;
   }
 
+  @Override
+  protected InternalCache createCacheAndCreateJdbcMappingWithWrongDataSource(
+      String cacheXmlTestName) throws Exception {
+    System.setProperty("TestDataSourceUrl", "jdbc:mysql://localhost/test");
+    InternalCache cache =
+        (InternalCache) new CacheFactory().set("locators", "").set("mcast-port", "0")
+            .set("cache-xml-file", getXmlFileForTest(cacheXmlTestName))
+            .create();
+    return cache;
+  }
+
+  @Override
+  protected InternalCache createCacheAndCreateJdbcMappingWithWrongPdxName(String cacheXmlTestName)
+      throws Exception {
+    String url = dbRule.getConnectionUrl().replaceAll("&", "&amp;");
+    System.setProperty("TestDataSourceUrl", url);
+    InternalCache cache =
+        (InternalCache) new CacheFactory().set("locators", "").set("mcast-port", "0")
+            .set("cache-xml-file", getXmlFileForTest(cacheXmlTestName))
+            .create();
+    return cache;
+  }
+
   private String getXmlFileForTest(String testName) {
     return createTempFileFromResource(getClass(),
         getClassSimpleName() + "." + testName + ".cache.xml").getAbsolutePath();
@@ -46,6 +69,12 @@ public class CacheXmlJdbcMappingIntegrationTest extends JdbcMappingIntegrationTe
 
   private String getClassSimpleName() {
     return getClass().getSimpleName();
+  }
+
+  @Override
+  protected String getConnectWrongDataSourceMessage() {
+    return String.format("No datasource \"%s\" found when creating mapping \"%s\"",
+        DATA_SOURCE_NAME, REGION_NAME);
   }
 
 }
