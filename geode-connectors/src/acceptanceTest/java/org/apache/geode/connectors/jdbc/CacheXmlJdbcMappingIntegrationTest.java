@@ -77,4 +77,13 @@ public class CacheXmlJdbcMappingIntegrationTest extends JdbcMappingIntegrationTe
         DATA_SOURCE_NAME, REGION_NAME);
   }
 
+  @Override
+  protected Class<?> getPdxNotExistsExceptionClass() {
+    return AssertionError.class;
+  }
+
+  @Override
+  protected String getPdxNotExistsMessage() {
+    return "[CacheXmlJdbcMappingIntegrationTest.NoPdxName.cache.xml]";
+  }
 }

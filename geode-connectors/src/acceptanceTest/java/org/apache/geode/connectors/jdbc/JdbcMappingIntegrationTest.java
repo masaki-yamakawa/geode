@@ -178,9 +178,13 @@ public abstract class JdbcMappingIntegrationTest {
     Throwable throwable =
         catchThrowable(() -> createCacheAndCreateJdbcMappingWithWrongPdxName("NoPdxName"));
 
-    assertThat(throwable).isInstanceOf(AssertionError.class)
-        .hasMessageContaining("[CacheXmlJdbcMappingIntegrationTest.NoPdxName.cache.xml]");
+    assertThat(throwable).isInstanceOf(getPdxNotExistsExceptionClass())
+        .hasMessageContaining(getPdxNotExistsMessage());
   }
+
+  protected abstract Class<?> getPdxNotExistsExceptionClass();
+
+  protected abstract String getPdxNotExistsMessage();
 
   @Test
   public void mappingFailureWhenPdxFieldAndTableMetaDataUnMatch() throws Exception {

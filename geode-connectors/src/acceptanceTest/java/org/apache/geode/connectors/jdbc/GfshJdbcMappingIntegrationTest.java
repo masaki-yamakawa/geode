@@ -190,6 +190,16 @@ public class GfshJdbcMappingIntegrationTest extends JdbcMappingIntegrationTest {
   }
 
   @Override
+  protected Class<?> getPdxNotExistsExceptionClass() {
+    return JdbcConnectorException.class;
+  }
+
+  @Override
+  protected String getPdxNotExistsMessage() {
+    return "The pdx class \"org.apache.geode.connectors.jdbc.NoPdx\" could not be loaded because: java.lang.ClassNotFoundException: org.apache.geode.connectors.jdbc.NoPdx";
+  }
+
+  @Override
   public void mappingFailureWhenFieldMappingAndTableMetaDataUnMatch() throws Exception {}
 
   @Override
