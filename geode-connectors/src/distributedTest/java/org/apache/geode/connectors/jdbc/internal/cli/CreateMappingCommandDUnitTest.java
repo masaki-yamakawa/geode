@@ -1142,7 +1142,7 @@ public class CreateMappingCommandDUnitTest {
             + " must not already exist.");
   }
 
-  private static class Employee implements PdxSerializable {
+  public static class Employee implements PdxSerializable {
 
     private String id;
     private String name;
@@ -1185,7 +1185,7 @@ public class CreateMappingCommandDUnitTest {
     }
   }
 
-  private static class EmployeeNumeric implements PdxSerializerObject {
+  public static class EmployeeNumeric implements PdxSerializerObject {
 
     private String id;
     private String name;
@@ -1234,7 +1234,7 @@ public class CreateMappingCommandDUnitTest {
     }
   }
 
-  private static class IdAndName implements PdxSerializable {
+  public static class IdAndName implements PdxSerializable {
 
     private String id;
     private String name;
